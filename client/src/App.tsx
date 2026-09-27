@@ -171,18 +171,20 @@ export default function App() {
               <WeatherWidget />
               <ProwlarrWidget />
             </div>
-            {/* NAS gets its own full-width row — its volume list can grow
-                past a dozen entries, and sharing a row with the fixed-size
-                cards below would stretch all of them to match its height. */}
-            <div className="mt-6 grid grid-cols-1 gap-6 empty:hidden">
+            {/* NAS and Docker host side by side — both are "this machine's
+                resources" cards. items-start keeps Docker host from
+                stretching to NAS's height when NAS's volume list runs long,
+                since a grid row otherwise stretches every card to the
+                tallest one. */}
+            <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] items-start gap-6 empty:hidden">
               <NasWidget />
+              <HostStatsWidget />
             </div>
             {/* Infrastructure widgets grouped together, separately from the
                 activity ones above — Containers belongs with Docker host,
                 not with downloads/media/car/weather. */}
             <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6 empty:hidden">
               <PortainerWidget />
-              <HostStatsWidget />
               <ServiceStatusWidget />
               <UptimeWidget />
             </div>
