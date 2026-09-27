@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import type { NasSnapshot } from "../types";
+import type { NasSnapshot, NasVolume } from "../types";
 import { Gauge } from "./Gauge";
 
 function formatBytes(bytes: number): string {
@@ -11,6 +11,30 @@ function formatBytes(bytes: number): string {
 
 function pct(used: number, total: number): number | null {
   return total > 0 ? Math.min((used / total) * 100, 100) : null;
+}
+
+function barColor(usedPct: number | null): string {
+  if (usedPct == null) return "#64748b";
+  if (usedPct >= 90) return "#f87171";
+  if (usedPct >= 75) return "#fbbf24";
+  return "#34d399";
+}
+
+// NAS OSes commonly bind-mount one physical volume at several share paths
+// (e.g. /share/Media, /share/Music, /share/Plex all backed by the same
+// disk) — hrStorageTable reports every mount point as its own row, so
+// without collapsing them a single volume shows up a dozen times. Byte-
+// identical total/used is a reliable signal they're the same device; the
+// shortest path is kept as the representative name (closer to the raw
+// mount, e.g. "/volume1" over "/share/Media").
+function dedupeVolumes(volumes: NasVolume[]): NasVolume[] {
+  const bySize = new Map<string, NasVolume>();
+  for (const v of volumes) {
+    const key = `${v.totalBytes}:${v.usedBytes}`;
+    const existing = bySize.get(key);
+    if (!existing || v.name.length < existing.name.length) bySize.set(key, v);
+  }
+  return [...bySize.values()];
 }
 
 export function NasWidget() {
@@ -39,6 +63,7 @@ export function NasWidget() {
   const memPercent = snapshot.memTotalBytes && snapshot.memUsedBytes != null
     ? pct(snapshot.memUsedBytes, snapshot.memTotalBytes)
     : null;
+  const volumes = dedupeVolumes(snapshot.volumes);
 
   return (
     <section className="glass rounded-2xl p-5">
@@ -68,24 +93,30 @@ export function NasWidget() {
             <Gauge value={memPercent} label="Memory" color="#a78bfa" />
           </div>
 
-          {snapshot.volumes.length > 0 && (
+          {volumes.length > 0 && (
             <div className="min-w-0 flex-1 sm:border-l sm:border-white/10 sm:pl-5">
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-4 gap-y-3">
-                {snapshot.volumes.map((v) => {
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
+                {volumes.map((v) => {
                   const usedPct = pct(v.usedBytes, v.totalBytes);
+                  const color = barColor(usedPct);
                   return (
-                    <div key={v.name} className="text-xs">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="min-w-0 truncate font-medium text-ink" title={v.name}>{v.name}</span>
-                        <span className="shrink-0 text-ink-muted">
+                    <div key={v.name} className="sunken rounded-xl p-3">
+                      <p className="mb-2 truncate text-xs font-semibold text-ink" title={v.name}>
+                        {v.name}
+                      </p>
+                      <div className="h-2 w-full overflow-hidden rounded-full sunken-strong">
+                        <div
+                          className="h-full rounded-full transition-[width] duration-500"
+                          style={{ width: `${usedPct ?? 0}%`, backgroundColor: color }}
+                        />
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between text-[11px]">
+                        <span className="font-bold" style={{ color }}>
+                          {usedPct != null ? `${Math.round(usedPct)}%` : "—"}
+                        </span>
+                        <span className="text-ink-muted">
                           {formatBytes(v.usedBytes)} / {formatBytes(v.totalBytes)}
                         </span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full sunken-strong">
-                        <div
-                          className="h-full rounded-full bg-accent"
-                          style={{ width: `${usedPct ?? 0}%` }}
-                        />
                       </div>
                     </div>
                   );
