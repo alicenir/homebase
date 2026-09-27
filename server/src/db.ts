@@ -72,6 +72,8 @@ const defaultSettings: Record<string, string> = {
   assistant_openai_model: "gpt-4o-mini",
   nas_snmp_host: "",
   nas_snmp_port: "161",
+  nas_snmp_version: "3",
+  nas_snmp_community: "",
   nas_snmp_username: "",
   nas_snmp_auth_protocol: "sha",
   nas_snmp_auth_key: "",

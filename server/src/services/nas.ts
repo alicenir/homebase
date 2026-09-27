@@ -19,7 +19,8 @@ export interface NasSnapshot {
   volumes: NasVolume[];
 }
 
-export interface NasV3Config {
+export interface NasConfigV3 {
+  version: "3";
   host: string;
   port: number;
   username: string;
@@ -29,14 +30,41 @@ export interface NasV3Config {
   privKey?: string;
 }
 
-function config(): NasV3Config | null {
+export interface NasConfigV1 {
+  version: "1";
+  host: string;
+  port: number;
+  community: string;
+}
+
+export interface NasConfigV2c {
+  version: "2c";
+  host: string;
+  port: number;
+  community: string;
+}
+
+export type NasConfig = NasConfigV3 | NasConfigV1 | NasConfigV2c;
+
+function config(): NasConfig | null {
   const host = getSetting("nas_snmp_host");
+  if (!host) return null;
+  const port = Number(getSetting("nas_snmp_port") || "161");
+  const version = (getSetting("nas_snmp_version") || "3") as NasConfig["version"];
+
+  if (version === "1" || version === "2c") {
+    const community = getSetting("nas_snmp_community");
+    if (!community) return null;
+    return { version, host, port, community };
+  }
+
   const username = getSetting("nas_snmp_username");
   const authKey = getSetting("nas_snmp_auth_key");
-  if (!host || !username || !authKey) return null;
+  if (!username || !authKey) return null;
   return {
+    version: "3",
     host,
-    port: Number(getSetting("nas_snmp_port") || "161"),
+    port,
     username,
     authProtocol: getSetting("nas_snmp_auth_protocol") || "sha",
     authKey,
@@ -56,7 +84,16 @@ function protocolValue(protocols: object, name: string, fallback: number): numbe
 // single password for authentication and never configure an encryption
 // (privacy) key for the user at all — dropping to authNoPriv is not a
 // downgrade we chose, it's the only level that user actually supports.
-function createSession(cfg: NasV3Config) {
+function createSession(cfg: NasConfig) {
+  if (cfg.version === "1" || cfg.version === "2c") {
+    return snmp.createSession(cfg.host, cfg.community, {
+      port: cfg.port,
+      timeout: 5000,
+      retries: 1,
+      version: cfg.version === "1" ? snmp.Version1 : snmp.Version2c,
+    });
+  }
+
   const hasPriv = Boolean(cfg.privKey);
   const user: snmp.User = {
     name: cfg.username,
@@ -78,7 +115,7 @@ function isUnsupportedSecurityLevelError(err: unknown): boolean {
 // Drops the privacy key so a retry authenticates as authNoPriv instead of
 // authPriv — used when the agent reports the user doesn't support
 // encryption, rather than as an upfront guess.
-function withoutPriv(cfg: NasV3Config): NasV3Config {
+function withoutPriv(cfg: NasConfigV3): NasConfigV3 {
   return { ...cfg, privProtocol: undefined, privKey: undefined };
 }
 
@@ -105,7 +142,7 @@ function rawValue(varbind: snmp.Varbind): unknown {
 // walk()/subtree() return every row correctly, so the bug is specifically
 // in table()'s row/column OID-matching, not in the v3 transport). Rebuilt
 // on top of subtree(), which is confirmed working, instead of depending on
-// the broken helper.
+// the broken helper. Works the same way for v1/v2c sessions.
 function snmpTable(session: snmp.Session, oid: string): Promise<Record<string, Record<string, unknown>>> {
   return new Promise((resolve, reject) => {
     const table: Record<string, Record<string, unknown>> = {};
@@ -182,7 +219,7 @@ function empty(configured: boolean, error?: string): NasSnapshot {
   };
 }
 
-async function fetchStatus(cfg: NasV3Config): Promise<NasSnapshot> {
+async function fetchStatus(cfg: NasConfig): Promise<NasSnapshot> {
   const session = createSession(cfg);
   try {
     const [sysDescrVb, uptimeVb] = await snmpGet(session, [OID.sysDescr, OID.sysUpTime]);
@@ -281,7 +318,7 @@ export async function getStatus(): Promise<NasSnapshot> {
   try {
     return await fetchStatus(cfg);
   } catch (err) {
-    if (cfg.privKey && isUnsupportedSecurityLevelError(err)) {
+    if (cfg.version === "3" && cfg.privKey && isUnsupportedSecurityLevelError(err)) {
       try {
         return await fetchStatus(withoutPriv(cfg));
       } catch (err2) {
@@ -292,7 +329,7 @@ export async function getStatus(): Promise<NasSnapshot> {
   }
 }
 
-async function attemptTest(cfg: NasV3Config): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
+async function attemptTest(cfg: NasConfig): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
   const session = createSession(cfg);
   try {
     const [sysDescrVb] = await snmpGet(session, [OID.sysDescr]);
@@ -304,11 +341,11 @@ async function attemptTest(cfg: NasV3Config): Promise<{ ok: boolean; error?: str
   }
 }
 
-export async function testConnection(cfg: NasV3Config): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
+export async function testConnection(cfg: NasConfig): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
   try {
     return await attemptTest(cfg);
   } catch (err) {
-    if (cfg.privKey && isUnsupportedSecurityLevelError(err)) {
+    if (cfg.version === "3" && cfg.privKey && isUnsupportedSecurityLevelError(err)) {
       try {
         return await attemptTest(withoutPriv(cfg));
       } catch (err2) {
@@ -327,15 +364,7 @@ export interface WalkEntry {
 
 const WALK_LIMIT = 300;
 
-/**
- * A diagnostic walk so a specific NAS's actual OID tree can be inspected —
- * ASUSTOR has no public MIB documentation we can rely on for per-disk
- * temperature/SMART health, so this is how real OIDs get discovered instead
- * of guessed. Defaults to the Host Resources storage table; pass a
- * different root (e.g. a vendor's private enterprise OID once known) to
- * look elsewhere.
- */
-function attemptWalk(cfg: NasV3Config, rootOid: string): Promise<{ ok: boolean; error?: string; entries?: WalkEntry[] }> {
+function attemptWalk(cfg: NasConfig, rootOid: string): Promise<{ ok: boolean; error?: string; entries?: WalkEntry[] }> {
   const session = createSession(cfg);
   const entries: WalkEntry[] = [];
   return new Promise((resolve) => {
@@ -360,12 +389,20 @@ function attemptWalk(cfg: NasV3Config, rootOid: string): Promise<{ ok: boolean; 
   });
 }
 
+/**
+ * A diagnostic walk so a specific NAS's actual OID tree can be inspected —
+ * ASUSTOR has no public MIB documentation we can rely on for per-disk
+ * temperature/SMART health, so this is how real OIDs get discovered instead
+ * of guessed. Defaults to the Host Resources storage table; pass a
+ * different root (e.g. a vendor's private enterprise OID once known) to
+ * look elsewhere.
+ */
 export async function walk(rootOid = OID.hrStorageTable): Promise<{ ok: boolean; error?: string; entries?: WalkEntry[] }> {
   const cfg = config();
   if (!cfg) return { ok: false, error: "not_configured" };
 
   const first = await attemptWalk(cfg, rootOid);
-  if (!first.ok && cfg.privKey && first.error && /unsupported security level/i.test(first.error)) {
+  if (!first.ok && cfg.version === "3" && cfg.privKey && first.error && /unsupported security level/i.test(first.error)) {
     return attemptWalk(withoutPriv(cfg), rootOid);
   }
   return first;

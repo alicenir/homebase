@@ -14,7 +14,7 @@ import { testConnection as testNasConnection } from "../services/nas.js";
 
 export const settingsRouter = Router();
 
-const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key", "nas_snmp_auth_key", "nas_snmp_priv_key"];
+const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key", "nas_snmp_auth_key", "nas_snmp_priv_key", "nas_snmp_community"];
 const URL_KEYS = ["sabnzbd_url", "sonarr_url", "radarr_url", "teslamate_url", "tautulli_url", "prowlarr_url", "portainer_url", "assistant_ollama_url", "nas_snmp_host", "nas_snmp_username"];
 
 settingsRouter.get("/", (req, res) => {
@@ -38,7 +38,13 @@ settingsRouter.get("/", (req, res) => {
   visible.assistant_configured = String(isAssistantConfigured());
   // Privacy (encryption) key is optional — some SNMPv3 setups (e.g. ASUSTOR
   // ADM) only ever provision an auth-only user, so it's never required here.
-  visible.nas_configured = String(Boolean(all.nas_snmp_host && all.nas_snmp_username && all.nas_snmp_auth_key));
+  const nasVersion = all.nas_snmp_version || "3";
+  visible.nas_configured = String(
+    Boolean(all.nas_snmp_host) &&
+      (nasVersion === "3"
+        ? Boolean(all.nas_snmp_username && all.nas_snmp_auth_key)
+        : Boolean(all.nas_snmp_community))
+  );
   if (!authed) {
     for (const key of URL_KEYS) delete visible[key];
   }
@@ -130,15 +136,35 @@ settingsRouter.post("/arr/test", requireAuth, async (req, res) => {
 const nasTestSchema = z.object({
   host: z.string().min(1),
   port: z.coerce.number().int().min(1).max(65535).default(161),
-  username: z.string().min(1),
-  authProtocol: z.string().min(1),
-  authKey: z.string().min(1),
-  privProtocol: z.string().min(1).optional(),
-  privKey: z.string().min(1).optional(),
+  version: z.enum(["1", "2c", "3"]).default("3"),
+  community: z.string().optional(),
+  username: z.string().optional(),
+  authProtocol: z.string().optional(),
+  authKey: z.string().optional(),
+  privProtocol: z.string().optional(),
+  privKey: z.string().optional(),
 });
 
 settingsRouter.post("/nas/test", requireAuth, async (req, res) => {
   const parsed = nasTestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Missing or invalid connection details" });
-  res.json(await testNasConnection(parsed.data));
+  const d = parsed.data;
+
+  if (d.version === "1" || d.version === "2c") {
+    if (!d.community) return res.status(400).json({ error: "Community string required" });
+    return res.json(await testNasConnection({ version: d.version, host: d.host, port: d.port, community: d.community }));
+  }
+  if (!d.username || !d.authKey) return res.status(400).json({ error: "Username and password required" });
+  res.json(
+    await testNasConnection({
+      version: "3",
+      host: d.host,
+      port: d.port,
+      username: d.username,
+      authProtocol: d.authProtocol || "sha",
+      authKey: d.authKey,
+      privProtocol: d.privProtocol,
+      privKey: d.privKey,
+    })
+  );
 });
