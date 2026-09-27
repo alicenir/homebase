@@ -39,6 +39,7 @@ db.exec(`
 const defaultSettings: Record<string, string> = {
   theme: "dark",
   accent_color: "#7c5cff",
+  background_image_url: "",
   greeting_name: "",
   search_engine: "https://www.google.com/search?q=%s",
   password_hash: "",
