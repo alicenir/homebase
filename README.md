@@ -132,17 +132,29 @@ The NAS widget speaks SNMP directly to your NAS (`server/src/services/nas.ts`) o
 version you pick in **Settings → NAS** — v3 (username + password, optionally with separate
 auth/privacy protocols and passwords under **Advanced options**) or v1/v2c (a single community
 string) — reading only standard, mandatory-in-the-spec OIDs: `sysDescr`/`sysUpTime`, the Host
-Resources `hrProcessorTable` and `hrStorageTable` for CPU/volumes, with the richer net-snmpd
-`UCD-SNMP-MIB` extension
-(`laLoad`/`memTotalReal`/`memAvailReal`) tried first and silently falling back to the Host Resources
-equivalents when an agent doesn't expose it. This is deliberate: ASUSTOR (and most NAS vendors)
-publish no public API or MIB docs for their own per-disk SMART/temperature data, so rather than guess
-at private enterprise OIDs, Homebase reads only what every compliant SNMP agent is required to
-expose, plus one diagnostic tool — **Settings → NAS → Run diagnostic walk** — that walks the storage
-table on your own configured NAS and shows every OID/type/value it finds, so vendor-specific OIDs
-(once known) can be added later based on what your actual hardware reports rather than
-documentation that doesn't exist. Auth/privacy keys are stored server-side like every other
-integration's credentials.
+Resources `hrProcessorTable` and `hrStorageTable` for CPU/volumes/memory, plus the richer net-snmpd
+`UCD-SNMP-MIB` extension where an agent exposes it. This is deliberate: ASUSTOR (and most NAS
+vendors) publish no public API or MIB docs for their own per-disk SMART/temperature data, so rather
+than guess at private enterprise OIDs, Homebase reads only what every compliant SNMP agent is
+required to expose, plus one diagnostic tool — **Settings → NAS → Run diagnostic walk** — that walks
+the storage table on your own configured NAS and shows every OID/type/value it finds, so
+vendor-specific OIDs (once known) can be added later based on what your actual hardware reports
+rather than documentation that doesn't exist. Auth/privacy keys are stored server-side like every
+other integration's credentials.
+
+CPU and memory each have a three-tier fallback chosen for accuracy over convenience, not just "first
+answer wins": **CPU** prefers `hrProcessorTable`'s per-core load (already a real percentage per RFC
+2790), then the UCD extension's `ssCpuIdle`, and only as a last resort a 1-minute load average
+divided by the actual core count (counted from `hrProcessorTable`'s rows, which some minimal agents
+populate without ever filling in the load column) — a raw load average is a queue length, not a
+percentage, so treating it as one on a multi-core NAS pegs the gauge near 100% at genuinely low
+utilization. **Memory** subtracts reclaimable buffers/cache from `memAvailReal` when the OIDs for
+them are exposed, the same correction the `free` command applies: `memAvailReal` on many SNMP agents
+reports raw free memory rather than Linux's "available" figure, and a NAS uses spare RAM heavily for
+file-serving page cache, so without this correction used memory looks close to 100% even when real
+application usage is a small fraction — which is exactly the mismatch a real ASUSTOR NAS showed
+against its own Activity Monitor (SNMP: 100% CPU / 96% memory vs. ADM's own 6% / 31%) before this
+fix.
 
 On SNMPv3, the one password ADM collects is used as an `authPriv` (encrypted) attempt first; if the
 agent reports `Unsupported Security Level` — the standard USM response when a user was never
