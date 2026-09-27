@@ -198,9 +198,12 @@ const RAM_TYPE_SUFFIX = ".2"; // hrStorageRam
 const OID = {
   sysDescr: "1.3.6.1.2.1.1.1.0",
   sysUpTime: "1.3.6.1.2.1.1.3.0",
+  ssCpuIdle: "1.3.6.1.4.1.2021.11.11.0",
   laLoad1: "1.3.6.1.4.1.2021.10.1.3.1",
   memTotalReal: "1.3.6.1.4.1.2021.4.5.0",
   memAvailReal: "1.3.6.1.4.1.2021.4.6.0",
+  memBuffer: "1.3.6.1.4.1.2021.4.14.0",
+  memCached: "1.3.6.1.4.1.2021.4.15.0",
   hrStorageTable: "1.3.6.1.2.1.25.2.3.1",
   hrProcessorTable: "1.3.6.1.2.1.25.3.3.1",
 };
@@ -226,43 +229,79 @@ async function fetchStatus(cfg: NasConfig): Promise<NasSnapshot> {
     const sysDescr = toStr(sysDescrVb);
     const uptimeTicks = toNumber(uptimeVb);
 
-    // CPU: try the UCD extension's 1-minute load average first (only
-    // present on net-snmpd-style agents); fall back to averaging
-    // hrProcessorTable's per-CPU load percentages, which Host Resources MIB
-    // implementations are expected to provide regardless of vendor.
+    // CPU: hrProcessorTable's per-CPU load first — RFC 2790 defines it as
+    // "the average, over the last minute, of the percentage of time this
+    // processor was not idle", i.e. already a real percentage, mandatory for
+    // Host Resources MIB implementations. A 1-minute *load average* (UCD's
+    // laLoad1) is a queue-length metric, not a percentage — multiplying it
+    // by 100 badly overstates load on any multi-core box (a load average of
+    // 1.0 pegs the gauge at 100% even when only one of many cores is busy),
+    // which is why it's not used here at all despite being simpler to read.
     let cpuLoadPercent: number | null = null;
+    let processorCount = 0;
     try {
-      const [loadVb] = await snmpGet(session, [OID.laLoad1]);
-      const load = toNumber(loadVb);
-      // A raw load average isn't a percentage, but on a single/dual-core
-      // NAS it's a reasonable proxy — good enough for a status widget.
-      if (load != null) cpuLoadPercent = Math.min(load * 100, 100);
+      const table = await snmpTable(session, OID.hrProcessorTable);
+      processorCount = Object.keys(table).length;
+      const loads = Object.values(table)
+        .map((row) => Number(row["2"]))
+        .filter((n) => Number.isFinite(n));
+      if (loads.length > 0) cpuLoadPercent = loads.reduce((a, b) => a + b, 0) / loads.length;
     } catch {
-      /* try the fallback below */
+      /* try the fallbacks below */
     }
     if (cpuLoadPercent == null) {
       try {
-        const table = await snmpTable(session, OID.hrProcessorTable);
-        const loads = Object.values(table)
-          .map((row) => Number(row["2"]))
-          .filter((n) => Number.isFinite(n));
-        if (loads.length > 0) cpuLoadPercent = loads.reduce((a, b) => a + b, 0) / loads.length;
+        const [idleVb] = await snmpGet(session, [OID.ssCpuIdle]);
+        const idle = toNumber(idleVb);
+        if (idle != null) cpuLoadPercent = Math.max(0, Math.min(100 - idle, 100));
+      } catch {
+        /* try the last-resort fallback below */
+      }
+    }
+    // Last resort: some minimal Host Resources implementations enumerate
+    // processor rows (giving us a real core count) without ever populating
+    // hrProcessorLoad itself — seen on a real test agent, and plausible on
+    // ASUSTOR's own non-standard agent. A bare load average only means
+    // something once divided by how many cores it's spread across; treating
+    // it as a raw percentage (the previous behaviour) pegged the gauge near
+    // 100% on any multi-core box even at genuinely low utilization.
+    if (cpuLoadPercent == null) {
+      try {
+        const [loadVb] = await snmpGet(session, [OID.laLoad1]);
+        const load = toNumber(loadVb);
+        if (load != null) cpuLoadPercent = Math.max(0, Math.min((load / Math.max(processorCount, 1)) * 100, 100));
       } catch {
         /* leave null — genuinely unavailable on this agent */
       }
     }
 
-    // Memory: UCD extension first (real KB values), else the RAM row of
-    // hrStorageTable (fetched below anyway, so reused rather than re-walked).
+    // Memory: UCD extension's total/available, corrected for buffers/cache
+    // when available. memAvailReal on many SNMP agents (including older
+    // net-snmp builds ASUSTOR's is likely derived from) reports raw free
+    // memory, not Linux's "available" figure — on a NAS, which uses spare
+    // RAM heavily for file-serving page cache, that makes used memory look
+    // close to 100% even when actual application usage is a small fraction.
+    // Subtracting reclaimable buffers/cache (the same correction `free`
+    // applies) gets this back in line with what ADM's own Activity Monitor
+    // reports. Falls back to the uncorrected total-minus-free figure when
+    // buffer/cache OIDs aren't available, and further to hrStorageTable's
+    // RAM row below when even that isn't.
     let memTotalBytes: number | null = null;
     let memUsedBytes: number | null = null;
     try {
-      const [totalVb, availVb] = await snmpGet(session, [OID.memTotalReal, OID.memAvailReal]);
+      const [totalVb, availVb, bufferVb, cachedVb] = await snmpGet(session, [
+        OID.memTotalReal,
+        OID.memAvailReal,
+        OID.memBuffer,
+        OID.memCached,
+      ]);
       const totalKb = toNumber(totalVb);
       const availKb = toNumber(availVb);
+      const bufferKb = toNumber(bufferVb) ?? 0;
+      const cachedKb = toNumber(cachedVb) ?? 0;
       if (totalKb != null && availKb != null) {
         memTotalBytes = totalKb * 1024;
-        memUsedBytes = (totalKb - availKb) * 1024;
+        memUsedBytes = Math.max(0, totalKb - availKb - bufferKb - cachedKb) * 1024;
       }
     } catch {
       /* try the storage-table RAM row below */
