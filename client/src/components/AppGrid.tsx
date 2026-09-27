@@ -12,14 +12,11 @@ import { useStore } from "../store/useStore";
 import type { Item } from "../types";
 import { AppCard } from "./AppCard";
 
-// flex-basis as a plain percentage doesn't account for the row's own gaps, so
-// the browser's line-breaking (which uses each item's *un-shrunk* basis, not
-// what it'll actually render at) silently wraps one item early per row —
-// e.g. 4 cards at a flat 25% plus 3 gaps overflow the row by the gap width,
-// so only 3 land on each line and grow stretches those 3, not 4. Baking the
-// gap into the basis with calc() keeps the intended column count exact.
-const TILE_BASIS =
-  "basis-[calc(50%-0.25rem)] sm:basis-[calc(50%-0.3125rem)] lg:basis-[calc(33.3333%-0.41667rem)] 2xl:basis-[calc(25%-0.46875rem)]";
+// A real CSS grid (not flex+basis) so every tile shares the same column
+// tracks: a trailing row that doesn't fill every column (11 apps in a
+// 4-column grid, say) leaves a gap on the right instead of one tile
+// stretching to fill it, with no extra markup needed to get that for free.
+const TILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2 sm:gap-2.5";
 
 interface Props {
   items: Item[];
@@ -61,11 +58,7 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
-        {/* flex + basis instead of a plain grid: a trailing row that doesn't
-            fill every column (11 apps in a 4-column grid, say) leaves a gap
-            on the right rather than stretching one card to fill it — every
-            tile stays the same size regardless of row position. */}
-        <div className="flex flex-wrap gap-2 sm:gap-2.5">
+        <div className={TILE_GRID}>
           {items.map((item) => (
             <AppCard
               key={item.id}
@@ -74,13 +67,12 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
               editMode={editMode}
               onEdit={onEdit}
               onDelete={handleDelete}
-              className={`grow-0 ${TILE_BASIS}`}
             />
           ))}
           {editMode && onAddClick && (
             <button
               onClick={onAddClick}
-              className={`hairline shrink-0 grow-0 flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent ${TILE_BASIS}`}
+              className="hairline aspect-square flex flex-col items-center justify-center gap-2 self-start rounded-xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg sunken text-xl">
                 +

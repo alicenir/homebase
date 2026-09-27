@@ -40,8 +40,8 @@ export function UptimeWidget() {
   const avgPct = history.length > 0 ? history.reduce((a, b) => a + b, 0) / history.length : 100;
 
   return (
-    <section className="glass flex flex-col rounded-2xl p-5">
-      <div className="mb-4 flex items-center gap-3">
+    <section className="glass flex aspect-square w-full max-w-[300px] flex-col self-start rounded-2xl p-5">
+      <div className="mb-3 flex items-center gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
           ⏱
         </div>
@@ -51,15 +51,15 @@ export function UptimeWidget() {
         </div>
       </div>
 
-      <div className="flex flex-1 items-center gap-5">
-        <Gauge value={currentPct} label="Reachable" sublabel="apps now" color="#34d399" size={80} />
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        <Gauge value={currentPct} label="Reachable" sublabel="apps now" color="#34d399" size={96} />
 
-        <div className="min-w-0 flex-1 self-stretch">
+        <div className="w-full">
           <div className="mb-1.5 flex items-baseline justify-between">
-            <p className="text-[11px] font-semibold text-ink-muted">Reachability history</p>
+            <p className="text-[11px] font-semibold text-ink-muted">History</p>
             <p className="text-[11px] font-semibold text-ink">{Math.round(avgPct)}% avg</p>
           </div>
-          <Sparkline values={history} height={48} color="#34d399" responsive />
+          <Sparkline values={history} height={40} color="#34d399" responsive />
         </div>
       </div>
     </section>

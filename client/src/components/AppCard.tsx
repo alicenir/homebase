@@ -12,8 +12,6 @@ interface Props {
   accent?: string;
   onEdit: (item: Item) => void;
   onDelete: (item: Item) => void;
-  /** Layout-only classes (flex basis/grow) applied by the grid, not the card itself. */
-  className?: string;
 }
 
 const DOT: Record<string, { color: string; label: string; text: string }> = {
@@ -31,7 +29,7 @@ function sinceLabel(since: string | null): string {
   return hours < 24 ? `${hours}h` : `${Math.round(hours / 24)}d`;
 }
 
-export function AppCard({ item, editMode, accent, onEdit, onDelete, className }: Props) {
+export function AppCard({ item, editMode, accent, onEdit, onDelete }: Props) {
   const health = useStore((s) => s.health[item.id]);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -52,22 +50,22 @@ export function AppCard({ item, editMode, accent, onEdit, onDelete, className }:
       {...attributes}
       {...listeners}
       whileHover={{ y: -2 }}
-      className={`group relative ${className ?? ""}`}
+      className="group relative aspect-square self-start"
     >
       <a
         href={editMode ? undefined : item.url}
         target="_blank"
         rel="noreferrer"
         onClick={(e) => editMode && e.preventDefault()}
-        className="glass flex h-full flex-col gap-2.5 rounded-xl p-3.5 transition-colors hover:border-[var(--tile-accent)]/60"
+        className="glass flex h-full flex-col items-center justify-center gap-2 rounded-xl p-3.5 text-center transition-colors hover:border-[var(--tile-accent)]/60"
       >
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+          className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg"
           style={{ backgroundColor: "color-mix(in srgb, var(--tile-accent) 16%, transparent)" }}
         >
-          <Icon icon={item.icon} name={item.name} className="h-6 w-6" />
+          <Icon icon={item.icon} name={item.name} className="h-7 w-7" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 w-full">
           <p className="truncate text-sm font-bold text-ink">{item.name}</p>
           {/* Subtitle: the item's own description when set (e.g. "Media
               streaming"), falling back to the host so the card isn't blank. */}
