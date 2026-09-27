@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
-import { getStatus, listEndpoints } from "../services/portainer.js";
+import { getHostStats, getStatus, listEndpoints } from "../services/portainer.js";
 
 export const portainerRouter = Router();
 
 portainerRouter.get("/status", async (_req, res) => {
   res.json(await getStatus());
+});
+
+portainerRouter.get("/hoststats", async (_req, res) => {
+  res.json(await getHostStats());
 });
 
 const endpointsSchema = z.object({ url: z.string().min(1), apiKey: z.string().min(1) });

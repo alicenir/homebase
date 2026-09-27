@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { AddMediaModal } from "./components/AddMediaModal";
 import { AppGrid } from "./components/AppGrid";
+import { AssistantChat } from "./components/AssistantChat";
+import { HostStatsWidget } from "./components/HostStatsWidget";
 import { NowPlayingWidget } from "./components/NowPlayingWidget";
 import { PortainerWidget } from "./components/PortainerWidget";
 import { ProwlarrWidget } from "./components/ProwlarrWidget";
+import { ServiceStatusWidget } from "./components/ServiceStatusWidget";
+import { SideRail } from "./components/SideRail";
 import { UpcomingSection } from "./components/UpcomingSection";
+import { UptimeWidget } from "./components/UptimeWidget";
 import { WeatherWidget } from "./components/WeatherWidget";
 import { BookmarksSection } from "./components/BookmarksSection";
 import { CommandPalette } from "./components/CommandPalette";
@@ -39,6 +44,8 @@ export default function App() {
     type: "app",
     categoryId: null,
   });
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantQuestion, setAssistantQuestion] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -100,10 +107,8 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1800px] flex-col gap-10 px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
-      <Header
-        query={query}
-        onQueryChange={setQuery}
+    <div className="mx-auto flex min-h-screen w-full max-w-[1800px] gap-6 px-5 py-8 sm:px-8 lg:px-12 lg:py-10">
+      <SideRail
         onOpenSettings={() => {
           setSettingsTab("General");
           setSettingsOpen(true);
@@ -111,55 +116,80 @@ export default function App() {
         onOpenLogin={() => setLoginOpen(true)}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col gap-10">
-        {(apps.length > 0 || editMode) && (
-          <section>
-            <SectionHeading major count={apps.length}>
-              Applications
-            </SectionHeading>
-            <AppGrid items={apps} onEdit={openEditModal} onAddClick={() => openAddModal("app")} />
-          </section>
-        )}
-
-        {/* Live status first. auto-fit keeps the row filled no matter how many
-            of these are configured, and empty:hidden avoids a stray gap when
-            none of them are. items-start stops a busy download queue from
-            stretching the shorter cards. */}
-        <section className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-start gap-6 empty:hidden">
-          <SabnzbdWidget />
-          <NowPlayingWidget />
-          <TeslaWidget />
-          <WeatherWidget />
-          <ProwlarrWidget />
-          <PortainerWidget />
-        </section>
-
-        <MediaSection
-          onConfigure={() => {
-            setSettingsTab("Media");
+      <div className="flex min-w-0 flex-1 flex-col gap-10">
+        <Header
+          query={query}
+          onQueryChange={setQuery}
+          onOpenSettings={() => {
+            setSettingsTab("General");
             setSettingsOpen(true);
+          }}
+          onOpenLogin={() => setLoginOpen(true)}
+          onAskAssistant={(question) => {
+            setAssistantQuestion(question);
+            setAssistantOpen(true);
           }}
         />
 
-        <UpcomingSection />
+        <main className="flex min-w-0 flex-1 flex-col gap-10">
+          {(apps.length > 0 || editMode) && (
+            <section id="apps-section">
+              <SectionHeading major count={apps.length}>
+                Applications
+              </SectionHeading>
+              <AppGrid items={apps} onEdit={openEditModal} onAddClick={() => openAddModal("app")} />
+            </section>
+          )}
 
-        <BookmarksSection
-          bookmarks={bookmarks}
-          onEdit={openEditModal}
-          onAddClick={(categoryId) => openAddModal("bookmark", categoryId)}
-        />
+          {/* Live status first. auto-fit keeps the row filled no matter how many
+              of these are configured, and empty:hidden avoids a stray gap when
+              none of them are. items-start stops a busy download queue from
+              stretching the shorter cards. */}
+          <section id="status-row" className="scroll-mt-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-start gap-6 empty:hidden">
+              <SabnzbdWidget />
+              <NowPlayingWidget />
+              <TeslaWidget />
+              <WeatherWidget />
+              <ProwlarrWidget />
+              <PortainerWidget />
+            </div>
+            <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-start gap-6 empty:hidden">
+              <HostStatsWidget />
+              <ServiceStatusWidget />
+              <UptimeWidget />
+            </div>
+          </section>
 
-        {apps.length === 0 && bookmarks.length === 0 && !editMode && (
-          <div className="glass flex flex-col items-center gap-3 rounded-2xl py-16 text-center">
-            <p className="text-lg font-semibold text-ink">Nothing here yet</p>
-            <p className="max-w-sm text-sm text-ink-muted">
-              {q
-                ? "No apps or bookmarks match your search."
-                : "Hit Edit to add your first app or bookmark."}
-            </p>
+          <div id="media-section">
+            <MediaSection
+              onConfigure={() => {
+                setSettingsTab("Media");
+                setSettingsOpen(true);
+              }}
+            />
           </div>
-        )}
-      </main>
+
+          <UpcomingSection />
+
+          <BookmarksSection
+            bookmarks={bookmarks}
+            onEdit={openEditModal}
+            onAddClick={(categoryId) => openAddModal("bookmark", categoryId)}
+          />
+
+          {apps.length === 0 && bookmarks.length === 0 && !editMode && (
+            <div className="glass flex flex-col items-center gap-3 rounded-2xl py-16 text-center">
+              <p className="text-lg font-semibold text-ink">Nothing here yet</p>
+              <p className="max-w-sm text-sm text-ink-muted">
+                {q
+                  ? "No apps or bookmarks match your search."
+                  : "Hit Edit to add your first app or bookmark."}
+              </p>
+            </div>
+          )}
+        </main>
+      </div>
 
       <AddMediaModal
         open={addMediaOpen}
@@ -180,6 +210,13 @@ export default function App() {
         editing={editingItem}
         defaultType={newItemDefaults.type}
         defaultCategoryId={newItemDefaults.categoryId}
+      />
+      <AssistantChat
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        onRequestLogin={() => setLoginOpen(true)}
+        pendingQuestion={assistantQuestion}
+        onConsumePendingQuestion={() => setAssistantQuestion(null)}
       />
     </div>
   );

@@ -8,11 +8,13 @@ import { testConnection as testTeslaConnection } from "../services/teslamate.js"
 import { testConnection as testTautulliConnection } from "../services/tautulli.js";
 import { invalidateWeatherCache } from "../services/weather.js";
 import { testConnection as testProwlarrConnection } from "../services/prowlarr.js";
+import { isAssistantConfigured } from "../services/assistant.js";
+import { callProvider } from "../services/assistantProviders.js";
 
 export const settingsRouter = Router();
 
-const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key"];
-const URL_KEYS = ["sabnzbd_url", "sonarr_url", "radarr_url", "teslamate_url", "tautulli_url", "prowlarr_url", "portainer_url"];
+const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key"];
+const URL_KEYS = ["sabnzbd_url", "sonarr_url", "radarr_url", "teslamate_url", "tautulli_url", "prowlarr_url", "portainer_url", "assistant_ollama_url"];
 
 settingsRouter.get("/", (req, res) => {
   const all = getAllSettings();
@@ -32,6 +34,7 @@ settingsRouter.get("/", (req, res) => {
   visible.weather_configured = String(Boolean(all.weather_latitude && all.weather_longitude));
   visible.prowlarr_configured = String(Boolean(all.prowlarr_url && all.prowlarr_api_key));
   visible.portainer_configured = String(Boolean(all.portainer_url && all.portainer_api_key));
+  visible.assistant_configured = String(isAssistantConfigured());
   if (!authed) {
     for (const key of URL_KEYS) delete visible[key];
   }
@@ -83,6 +86,32 @@ settingsRouter.post("/prowlarr/test", requireAuth, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "URL and API key required" });
   const result = await testProwlarrConnection(parsed.data.url, parsed.data.apiKey);
   res.json(result);
+});
+
+const assistantTestSchema = z.object({
+  provider: z.enum(["ollama", "anthropic", "openai"]),
+  ollamaUrl: z.string().optional(),
+  ollamaModel: z.string().optional(),
+  anthropicApiKey: z.string().optional(),
+  anthropicModel: z.string().optional(),
+  openaiApiKey: z.string().optional(),
+  openaiModel: z.string().optional(),
+});
+
+settingsRouter.post("/assistant/test", requireAuth, async (req, res) => {
+  const parsed = assistantTestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid assistant config" });
+  try {
+    const reply = await callProvider(
+      parsed.data,
+      "Reply with exactly one word.",
+      [{ role: "user", content: "Say OK." }],
+      []
+    );
+    res.json({ ok: true, reply: reply.content.trim().slice(0, 80) });
+  } catch (err) {
+    res.json({ ok: false, error: err instanceof Error ? err.message : "Connection failed" });
+  }
 });
 
 const arrTestSchema = testSchema.extend({ service: z.enum(["sonarr", "radarr"]) });

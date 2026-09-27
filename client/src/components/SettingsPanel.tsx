@@ -6,7 +6,7 @@ import { useStore } from "../store/useStore";
 import type { GeocodeResult } from "../types";
 
 const ACCENTS = ["#7c5cff", "#22c55e", "#f97316", "#ef4444", "#06b6d4", "#ec4899"];
-const TABS = ["General", "Appearance", "Weather", "Downloads", "Media", "Indexers", "Plex", "Docker", "Car", "Categories", "Security"] as const;
+const TABS = ["General", "Appearance", "Weather", "Downloads", "Media", "Indexers", "Plex", "Docker", "Car", "Assistant", "Categories", "Security"] as const;
 
 type TabName = (typeof TABS)[number];
 
@@ -53,6 +53,16 @@ export function SettingsPanel({
   const [testingPortainer, setTestingPortainer] = useState(false);
   const [endpoints, setEndpoints] = useState<{ id: number; name: string; status: string }[]>([]);
   const [testingPlex, setTestingPlex] = useState(false);
+  const [assistant, setAssistant] = useState({
+    provider: "" as "" | "ollama" | "anthropic" | "openai",
+    ollamaUrl: "",
+    ollamaModel: "",
+    anthropicApiKey: "",
+    anthropicModel: "",
+    openaiApiKey: "",
+    openaiModel: "",
+  });
+  const [testingAssistant, setTestingAssistant] = useState(false);
   const [placeQuery, setPlaceQuery] = useState("");
   const [places, setPlaces] = useState<GeocodeResult[]>([]);
   const [searchingPlace, setSearchingPlace] = useState(false);
@@ -90,6 +100,15 @@ export function SettingsPanel({
       sonarr_api_key: "",
       radarr_url: settings.radarr_url ?? "",
       radarr_api_key: "",
+    });
+    setAssistant({
+      provider: (settings.assistant_provider as "" | "ollama" | "anthropic" | "openai") ?? "",
+      ollamaUrl: settings.assistant_ollama_url ?? "",
+      ollamaModel: settings.assistant_ollama_model ?? "",
+      anthropicApiKey: "",
+      anthropicModel: settings.assistant_anthropic_model ?? "",
+      openaiApiKey: "",
+      openaiModel: settings.assistant_openai_model ?? "",
     });
   }, [settings, open]);
 
@@ -279,6 +298,59 @@ export function SettingsPanel({
     });
     setPortainer((s) => ({ ...s, apiKey: "" }));
     toast.success("Portainer saved");
+  }
+
+  function assistantPayload() {
+    return {
+      provider: assistant.provider,
+      ollamaUrl: assistant.ollamaUrl,
+      ollamaModel: assistant.ollamaModel,
+      anthropicApiKey: assistant.anthropicApiKey,
+      anthropicModel: assistant.anthropicModel,
+      openaiApiKey: assistant.openaiApiKey,
+      openaiModel: assistant.openaiModel,
+    };
+  }
+
+  async function testAssistant() {
+    if (!assistant.provider) return toast.error("Choose a provider first");
+    setTestingAssistant(true);
+    try {
+      const result = await api.post<{ ok: boolean; error?: string; reply?: string }>(
+        "/settings/assistant/test",
+        assistantPayload()
+      );
+      if (result.ok) toast.success(`Connected — replied "${result.reply}"`);
+      else toast.error(result.error ?? "Connection failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Connection failed");
+    } finally {
+      setTestingAssistant(false);
+    }
+  }
+
+  async function saveAssistant() {
+    const payload: Record<string, string> = {
+      assistant_provider: assistant.provider,
+      assistant_ollama_url: assistant.ollamaUrl,
+      assistant_ollama_model: assistant.ollamaModel,
+      assistant_anthropic_model: assistant.anthropicModel,
+      assistant_openai_model: assistant.openaiModel,
+    };
+    if (assistant.anthropicApiKey) payload.assistant_anthropic_api_key = assistant.anthropicApiKey;
+    if (assistant.openaiApiKey) payload.assistant_openai_api_key = assistant.openaiApiKey;
+    await api.put("/settings", payload);
+    setSettings({
+      ...settings!,
+      assistant_provider: assistant.provider,
+      assistant_ollama_url: assistant.ollamaUrl,
+      assistant_ollama_model: assistant.ollamaModel,
+      assistant_anthropic_model: assistant.anthropicModel,
+      assistant_openai_model: assistant.openaiModel,
+      assistant_configured: String(Boolean(assistant.provider)),
+    });
+    setAssistant((s) => ({ ...s, anthropicApiKey: "", openaiApiKey: "" }));
+    toast.success("Assistant saved");
   }
 
   async function testPlex() {
@@ -918,6 +990,122 @@ export function SettingsPanel({
                       Save
                     </button>
                   </div>
+                </div>
+              )}
+
+              {tab === "Assistant" && (
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-lg font-semibold">Assistant</h2>
+                  <p className="text-sm text-ink-muted">
+                    Powers the "Ask anything" bar. It can read your downloads, media, indexers,
+                    containers, car and weather live, and — only with your approval — add media or
+                    change the download queue.
+                  </p>
+
+                  <div>
+                    <p className="mb-2 text-sm text-ink-muted">Provider</p>
+                    <div className="flex gap-2">
+                      {(["ollama", "anthropic", "openai"] as const).map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => setAssistant((s) => ({ ...s, provider: p }))}
+                          className={`flex-1 rounded-lg py-1.5 text-sm capitalize transition-colors ${
+                            assistant.provider === p
+                              ? "bg-accent text-white"
+                              : "sunken text-ink-muted hover:text-ink"
+                          }`}
+                        >
+                          {p === "ollama" ? "Ollama (local)" : p === "anthropic" ? "Claude" : "OpenAI"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {assistant.provider === "ollama" && (
+                    <>
+                      <label className="text-sm text-ink-muted">
+                        Ollama URL
+                        <input
+                          value={assistant.ollamaUrl}
+                          onChange={(e) => setAssistant((s) => ({ ...s, ollamaUrl: e.target.value }))}
+                          placeholder="http://ollama.local:11434"
+                          className="field mt-1"
+                        />
+                      </label>
+                      <label className="text-sm text-ink-muted">
+                        Model
+                        <input
+                          value={assistant.ollamaModel}
+                          onChange={(e) => setAssistant((s) => ({ ...s, ollamaModel: e.target.value }))}
+                          placeholder="llama3.1"
+                          className="field mt-1"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {assistant.provider === "anthropic" && (
+                    <>
+                      <label className="text-sm text-ink-muted">
+                        Anthropic API key
+                        <input
+                          type="password"
+                          value={assistant.anthropicApiKey}
+                          onChange={(e) => setAssistant((s) => ({ ...s, anthropicApiKey: e.target.value }))}
+                          placeholder={settings?.assistant_configured === "true" ? "•••• (unchanged)" : "sk-ant-…"}
+                          className="field mt-1"
+                        />
+                      </label>
+                      <label className="text-sm text-ink-muted">
+                        Model
+                        <input
+                          value={assistant.anthropicModel}
+                          onChange={(e) => setAssistant((s) => ({ ...s, anthropicModel: e.target.value }))}
+                          placeholder="claude-sonnet-4-5"
+                          className="field mt-1"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {assistant.provider === "openai" && (
+                    <>
+                      <label className="text-sm text-ink-muted">
+                        OpenAI API key
+                        <input
+                          type="password"
+                          value={assistant.openaiApiKey}
+                          onChange={(e) => setAssistant((s) => ({ ...s, openaiApiKey: e.target.value }))}
+                          placeholder={settings?.assistant_configured === "true" ? "•••• (unchanged)" : "sk-…"}
+                          className="field mt-1"
+                        />
+                      </label>
+                      <label className="text-sm text-ink-muted">
+                        Model
+                        <input
+                          value={assistant.openaiModel}
+                          onChange={(e) => setAssistant((s) => ({ ...s, openaiModel: e.target.value }))}
+                          placeholder="gpt-4o-mini"
+                          className="field mt-1"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {assistant.provider && (
+                    <div className="ml-auto flex gap-2">
+                      <button
+                        onClick={testAssistant}
+                        disabled={testingAssistant}
+                        className="btn-outline disabled:opacity-50"
+                      >
+                        {testingAssistant ? "Testing…" : "Test"}
+                      </button>
+                      <button onClick={saveAssistant} className="btn-primary">
+                        Save
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

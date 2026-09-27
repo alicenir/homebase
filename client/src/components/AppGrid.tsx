@@ -66,12 +66,12 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
           {editMode && onAddClick && (
             <button
               onClick={onAddClick}
-              className="hairline flex items-center gap-3 rounded-xl border border-dashed px-3 py-2.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent"
+              className="hairline flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg sunken text-xl">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg sunken text-xl">
                 +
               </span>
-              <span className="text-[13px] font-bold uppercase tracking-wide">Add</span>
+              <span className="text-sm font-bold">Add</span>
             </button>
           )}
         </div>

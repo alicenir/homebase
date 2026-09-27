@@ -137,6 +137,12 @@ export function ItemModal({ open, onClose, editing, defaultType, defaultCategory
                 placeholder="Icon: emoji, image URL, or simple-icons slug (e.g. plex)"
                 className="field"
               />
+              <input
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Subtitle (optional, e.g. Media streaming)"
+                className="field"
+              />
 
               {type === "bookmark" && (
                 <select

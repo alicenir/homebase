@@ -14,10 +14,10 @@ interface Props {
   onDelete: (item: Item) => void;
 }
 
-const DOT: Record<string, { color: string; label: string }> = {
-  up: { color: "#34d399", label: "Reachable" },
-  down: { color: "#f87171", label: "Not responding" },
-  unknown: { color: "#94a3b8", label: "Not checked yet" },
+const DOT: Record<string, { color: string; label: string; text: string }> = {
+  up: { color: "#34d399", label: "Reachable", text: "Online" },
+  down: { color: "#f87171", label: "Not responding", text: "Offline" },
+  unknown: { color: "#94a3b8", label: "Not checked yet", text: "Unknown" },
 };
 
 function sinceLabel(since: string | null): string {
@@ -57,38 +57,38 @@ export function AppCard({ item, editMode, accent, onEdit, onDelete }: Props) {
         target="_blank"
         rel="noreferrer"
         onClick={(e) => editMode && e.preventDefault()}
-        className="glass flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:border-[var(--tile-accent)]/60"
+        className="glass flex h-full flex-col gap-2.5 rounded-xl p-3.5 transition-colors hover:border-[var(--tile-accent)]/60"
       >
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"
           style={{ backgroundColor: "color-mix(in srgb, var(--tile-accent) 16%, transparent)" }}
         >
-          <Icon icon={item.icon} name={item.name} className="h-7 w-7" />
+          <Icon icon={item.icon} name={item.name} className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 truncate text-[13px] font-bold uppercase tracking-wide text-ink">
-            <span className="truncate">{item.name}</span>
-            {health && health.state !== "unknown" && (
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: DOT[health.state].color }}
-                title={`${DOT[health.state].label}${
-                  health.status ? ` (HTTP ${health.status})` : ""
-                }${health.since ? ` · ${sinceLabel(health.since)}` : ""}`}
-                aria-label={DOT[health.state].label}
-              />
-            )}
-          </p>
-          {/* At two-up on a phone this truncates to the shared domain prefix on
-              every card — the port, the only distinguishing part, is what gets
-              cut. Hidden below sm; the name is what you tap anyway. */}
-          <p
-            className="hidden truncate text-[11px] font-medium lowercase sm:block"
-            style={{ color: "var(--tile-accent)" }}
-          >
-            {displayHost(item.url)}
+          <p className="truncate text-sm font-bold text-ink">{item.name}</p>
+          {/* Subtitle: the item's own description when set (e.g. "Media
+              streaming"), falling back to the host so the card isn't blank. */}
+          <p className="truncate text-[11px] font-medium text-ink-muted">
+            {item.description || displayHost(item.url)}
           </p>
         </div>
+        {health && health.state !== "unknown" && (
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-ink-muted">
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: DOT[health.state].color }}
+              aria-hidden
+            />
+            <span
+              title={`${DOT[health.state].label}${
+                health.status ? ` (HTTP ${health.status})` : ""
+              }${health.since ? ` · ${sinceLabel(health.since)}` : ""}`}
+            >
+              {DOT[health.state].text}
+            </span>
+          </div>
+        )}
       </a>
 
       {editMode && (

@@ -62,6 +62,13 @@ const defaultSettings: Record<string, string> = {
   portainer_url: "",
   portainer_api_key: "",
   portainer_endpoint_id: "1",
+  assistant_provider: "",
+  assistant_ollama_url: "",
+  assistant_ollama_model: "",
+  assistant_anthropic_api_key: "",
+  assistant_anthropic_model: "claude-sonnet-4-5",
+  assistant_openai_api_key: "",
+  assistant_openai_model: "gpt-4o-mini",
 };
 
 const insertSetting = db.prepare(

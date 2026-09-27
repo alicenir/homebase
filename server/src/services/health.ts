@@ -14,6 +14,20 @@ export interface HealthEntry {
 
 const results = new Map<number, HealthEntry>();
 
+export interface UptimeInfo {
+  /** Homebase's own process uptime, in seconds. */
+  processUptimeSeconds: number;
+  /** Rolling history of "fraction of tracked apps reachable" per sweep, oldest first. */
+  history: { at: string; fractionUp: number }[];
+}
+
+const HISTORY_LIMIT = 120; // 2 hours at the 60s poll interval
+const history: { at: string; fractionUp: number }[] = [];
+
+export function uptimeInfo(): UptimeInfo {
+  return { processUptimeSeconds: Math.floor(process.uptime()), history };
+}
+
 /**
  * Checks one of the user's own app URLs. These are addresses they typed into
  * their own dashboard, so this is deliberately not restricted the way the
@@ -79,6 +93,13 @@ export async function checkAll(): Promise<Record<number, HealthEntry>> {
   // Drop entries for items that no longer exist.
   const live = new Set(items.map((i) => i.id));
   for (const id of results.keys()) if (!live.has(id)) results.delete(id);
+
+  const checked = [...results.values()].filter((r) => r.state !== "unknown");
+  if (checked.length > 0) {
+    const fractionUp = checked.filter((r) => r.state === "up").length / checked.length;
+    history.push({ at: now, fractionUp });
+    if (history.length > HISTORY_LIMIT) history.shift();
+  }
 
   return snapshot();
 }
