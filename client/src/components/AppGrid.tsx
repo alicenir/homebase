@@ -16,7 +16,7 @@ import { AppCard } from "./AppCard";
 // tracks: a trailing row that doesn't fill every column (11 apps in a
 // 4-column grid, say) leaves a gap on the right instead of one tile
 // stretching to fill it, with no extra markup needed to get that for free.
-const TILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2 sm:gap-2.5";
+const TILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 sm:gap-2.5";
 
 interface Props {
   items: Item[];
@@ -72,7 +72,7 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
           {editMode && onAddClick && (
             <button
               onClick={onAddClick}
-              className="hairline aspect-square flex flex-col items-center justify-center gap-2 self-start rounded-xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent"
+              className="hairline flex h-full min-h-[104px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg sunken text-xl">
                 +
