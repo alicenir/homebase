@@ -311,6 +311,30 @@ export interface HostStats {
   runningCount: number;
 }
 
+export interface NasVolume {
+  name: string;
+  totalBytes: number;
+  usedBytes: number;
+}
+
+export interface NasSnapshot {
+  configured: boolean;
+  reachable: boolean;
+  error?: string;
+  sysDescr: string | null;
+  uptimeSeconds: number | null;
+  cpuLoadPercent: number | null;
+  memTotalBytes: number | null;
+  memUsedBytes: number | null;
+  volumes: NasVolume[];
+}
+
+export interface NasWalkEntry {
+  oid: string;
+  type: string;
+  value: string;
+}
+
 export interface UptimeInfo {
   processUptimeSeconds: number;
   history: { at: string; fractionUp: number }[];

@@ -48,6 +48,10 @@ questions about all of it.
   services these widgets use. Bring your own model: a local [Ollama](https://ollama.com) server, or a
   Claude/OpenAI API key. It can also add media to Sonarr/Radarr or pause/resume/remove downloads —
   but only after you explicitly approve that specific action, and only when you're signed in.
+- **NAS monitoring (SNMPv3)** — CPU load, memory and per-volume storage usage read straight from your
+  NAS's own SNMP agent (RFC 2790 Host Resources MIB), so it works against any NAS/NVR/server that
+  exposes standard SNMP, not just a specific vendor. No vendor API or extra agent to install — just
+  enable SNMPv3 in your NAS's network services settings and point Homebase at it.
 - **Theming** — dark/light mode and a configurable accent color.
 - **Optional password lock** — editing (adding/removing apps, changing settings) can be locked behind a
   password; browsing the dashboard itself is always open.
@@ -123,6 +127,19 @@ at approval at all, so a client can't approve its way past sign-in. Same pattern
 privileged action in this app: prompt for the password rather than silently failing or hiding the option.
 API keys are stored server-side like every other integration; the browser never sees them.
 
+The NAS widget speaks SNMPv3 directly to your NAS (`server/src/services/nas.ts`), reading only
+standard, mandatory-in-the-spec OIDs: `sysDescr`/`sysUpTime`, the Host Resources `hrProcessorTable`
+and `hrStorageTable` for CPU/volumes, with the richer net-snmpd `UCD-SNMP-MIB` extension
+(`laLoad`/`memTotalReal`/`memAvailReal`) tried first and silently falling back to the Host Resources
+equivalents when an agent doesn't expose it. This is deliberate: ASUSTOR (and most NAS vendors)
+publish no public API or MIB docs for their own per-disk SMART/temperature data, so rather than guess
+at private enterprise OIDs, Homebase reads only what every compliant SNMP agent is required to
+expose, plus one diagnostic tool — **Settings → NAS → Run diagnostic walk** — that walks the storage
+table on your own configured NAS and shows every OID/type/value it finds, so vendor-specific OIDs
+(once known) can be added later based on what your actual hardware reports rather than
+documentation that doesn't exist. Auth/privacy keys are stored server-side like every other
+integration's credentials.
+
 ## Running locally (development)
 
 ```bash
@@ -174,7 +191,10 @@ volume.
 11. Optionally set up the AI assistant under **Settings → Assistant** — pick Ollama (paste its URL and a
     model name already pulled there) or Claude/OpenAI (paste an API key), hit **Test**, and save. The
     "Ask anything" bar appears in the header once a provider is configured.
-12. Optionally set a password under **Settings → Security** to lock editing.
+12. Optionally connect your NAS under **Settings → NAS** — enable SNMPv3 in your NAS's network
+    services settings first (ASUSTOR: ADM → **Settings → Services → SNMP**), then enter its IP,
+    SNMP username, and the auth/privacy protocols + passwords you configured there, and hit **Test**.
+13. Optionally set a password under **Settings → Security** to lock editing.
 
 ## Configuration reference
 

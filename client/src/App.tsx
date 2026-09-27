@@ -3,6 +3,7 @@ import { AddMediaModal } from "./components/AddMediaModal";
 import { AppGrid } from "./components/AppGrid";
 import { AssistantChat } from "./components/AssistantChat";
 import { HostStatsWidget } from "./components/HostStatsWidget";
+import { NasWidget } from "./components/NasWidget";
 import { NowPlayingWidget } from "./components/NowPlayingWidget";
 import { PortainerWidget } from "./components/PortainerWidget";
 import { ProwlarrWidget } from "./components/ProwlarrWidget";
@@ -170,6 +171,7 @@ export default function App() {
                 activity ones above — Containers belongs with Docker host,
                 not with downloads/media/car/weather. */}
             <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6 empty:hidden">
+              <NasWidget />
               <PortainerWidget />
               <HostStatsWidget />
               <ServiceStatusWidget />

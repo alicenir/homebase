@@ -10,11 +10,12 @@ import { invalidateWeatherCache } from "../services/weather.js";
 import { testConnection as testProwlarrConnection } from "../services/prowlarr.js";
 import { isAssistantConfigured } from "../services/assistant.js";
 import { callProvider } from "../services/assistantProviders.js";
+import { testConnection as testNasConnection } from "../services/nas.js";
 
 export const settingsRouter = Router();
 
-const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key"];
-const URL_KEYS = ["sabnzbd_url", "sonarr_url", "radarr_url", "teslamate_url", "tautulli_url", "prowlarr_url", "portainer_url", "assistant_ollama_url"];
+const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key", "nas_snmp_auth_key", "nas_snmp_priv_key"];
+const URL_KEYS = ["sabnzbd_url", "sonarr_url", "radarr_url", "teslamate_url", "tautulli_url", "prowlarr_url", "portainer_url", "assistant_ollama_url", "nas_snmp_host", "nas_snmp_username"];
 
 settingsRouter.get("/", (req, res) => {
   const all = getAllSettings();
@@ -35,6 +36,9 @@ settingsRouter.get("/", (req, res) => {
   visible.prowlarr_configured = String(Boolean(all.prowlarr_url && all.prowlarr_api_key));
   visible.portainer_configured = String(Boolean(all.portainer_url && all.portainer_api_key));
   visible.assistant_configured = String(isAssistantConfigured());
+  visible.nas_configured = String(
+    Boolean(all.nas_snmp_host && all.nas_snmp_username && all.nas_snmp_auth_key && all.nas_snmp_priv_key)
+  );
   if (!authed) {
     for (const key of URL_KEYS) delete visible[key];
   }
@@ -121,4 +125,20 @@ settingsRouter.post("/arr/test", requireAuth, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Service, URL and API key required" });
   const result = await testArrConnection(parsed.data.service, parsed.data.url, parsed.data.apiKey);
   res.json(result);
+});
+
+const nasTestSchema = z.object({
+  host: z.string().min(1),
+  port: z.coerce.number().int().min(1).max(65535).default(161),
+  username: z.string().min(1),
+  authProtocol: z.string().min(1),
+  authKey: z.string().min(1),
+  privProtocol: z.string().min(1),
+  privKey: z.string().min(1),
+});
+
+settingsRouter.post("/nas/test", requireAuth, async (req, res) => {
+  const parsed = nasTestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Missing or invalid connection details" });
+  res.json(await testNasConnection(parsed.data));
 });

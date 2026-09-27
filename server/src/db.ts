@@ -70,6 +70,13 @@ const defaultSettings: Record<string, string> = {
   assistant_anthropic_model: "claude-sonnet-4-5",
   assistant_openai_api_key: "",
   assistant_openai_model: "gpt-4o-mini",
+  nas_snmp_host: "",
+  nas_snmp_port: "161",
+  nas_snmp_username: "",
+  nas_snmp_auth_protocol: "sha",
+  nas_snmp_auth_key: "",
+  nas_snmp_priv_protocol: "aes",
+  nas_snmp_priv_key: "",
 };
 
 const insertSetting = db.prepare(
