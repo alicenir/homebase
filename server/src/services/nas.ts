@@ -25,16 +25,15 @@ export interface NasV3Config {
   username: string;
   authProtocol: string;
   authKey: string;
-  privProtocol: string;
-  privKey: string;
+  privProtocol?: string;
+  privKey?: string;
 }
 
 function config(): NasV3Config | null {
   const host = getSetting("nas_snmp_host");
   const username = getSetting("nas_snmp_username");
   const authKey = getSetting("nas_snmp_auth_key");
-  const privKey = getSetting("nas_snmp_priv_key");
-  if (!host || !username || !authKey || !privKey) return null;
+  if (!host || !username || !authKey) return null;
   return {
     host,
     port: Number(getSetting("nas_snmp_port") || "161"),
@@ -42,7 +41,7 @@ function config(): NasV3Config | null {
     authProtocol: getSetting("nas_snmp_auth_protocol") || "sha",
     authKey,
     privProtocol: getSetting("nas_snmp_priv_protocol") || "aes",
-    privKey,
+    privKey: getSetting("nas_snmp_priv_key") || undefined,
   };
 }
 
@@ -53,16 +52,34 @@ function protocolValue(protocols: object, name: string, fallback: number): numbe
   return (protocols as unknown as Record<string, number>)[name] ?? fallback;
 }
 
+// Some NAS SNMPv3 setups (ASUSTOR's ADM included) only ever provision a
+// single password for authentication and never configure an encryption
+// (privacy) key for the user at all — dropping to authNoPriv is not a
+// downgrade we chose, it's the only level that user actually supports.
 function createSession(cfg: NasV3Config) {
+  const hasPriv = Boolean(cfg.privKey);
   const user: snmp.User = {
     name: cfg.username,
-    level: snmp.SecurityLevel.authPriv,
+    level: hasPriv ? snmp.SecurityLevel.authPriv : snmp.SecurityLevel.authNoPriv,
     authProtocol: protocolValue(snmp.AuthProtocols, cfg.authProtocol, snmp.AuthProtocols.sha),
     authKey: cfg.authKey,
-    privProtocol: protocolValue(snmp.PrivProtocols, cfg.privProtocol, snmp.PrivProtocols.aes),
-    privKey: cfg.privKey,
   };
+  if (hasPriv) {
+    user.privProtocol = protocolValue(snmp.PrivProtocols, cfg.privProtocol ?? "aes", snmp.PrivProtocols.aes);
+    user.privKey = cfg.privKey;
+  }
   return snmp.createV3Session(cfg.host, user, { port: cfg.port, timeout: 5000, retries: 1 });
+}
+
+function isUnsupportedSecurityLevelError(err: unknown): boolean {
+  return err instanceof Error && /unsupported security level/i.test(err.message);
+}
+
+// Drops the privacy key so a retry authenticates as authNoPriv instead of
+// authPriv — used when the agent reports the user doesn't support
+// encryption, rather than as an upfront guess.
+function withoutPriv(cfg: NasV3Config): NasV3Config {
+  return { ...cfg, privProtocol: undefined, privKey: undefined };
 }
 
 function snmpGet(session: snmp.Session, oids: string[]): Promise<snmp.Varbind[]> {
@@ -165,10 +182,7 @@ function empty(configured: boolean, error?: string): NasSnapshot {
   };
 }
 
-export async function getStatus(): Promise<NasSnapshot> {
-  const cfg = config();
-  if (!cfg) return empty(false);
-
+async function fetchStatus(cfg: NasV3Config): Promise<NasSnapshot> {
   const session = createSession(cfg);
   try {
     const [sysDescrVb, uptimeVb] = await snmpGet(session, [OID.sysDescr, OID.sysUpTime]);
@@ -255,24 +269,53 @@ export async function getStatus(): Promise<NasSnapshot> {
       memUsedBytes,
       volumes,
     };
-  } catch (err) {
-    return empty(true, err instanceof Error ? err.message : "unreachable");
   } finally {
     session.close();
   }
 }
 
-export async function testConnection(cfg: NasV3Config): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
+export async function getStatus(): Promise<NasSnapshot> {
+  const cfg = config();
+  if (!cfg) return empty(false);
+
+  try {
+    return await fetchStatus(cfg);
+  } catch (err) {
+    if (cfg.privKey && isUnsupportedSecurityLevelError(err)) {
+      try {
+        return await fetchStatus(withoutPriv(cfg));
+      } catch (err2) {
+        return empty(true, err2 instanceof Error ? err2.message : "unreachable");
+      }
+    }
+    return empty(true, err instanceof Error ? err.message : "unreachable");
+  }
+}
+
+async function attemptTest(cfg: NasV3Config): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
   const session = createSession(cfg);
   try {
     const [sysDescrVb] = await snmpGet(session, [OID.sysDescr]);
     const sysDescr = toStr(sysDescrVb);
     if (sysDescr == null) return { ok: false, error: "No response for sysDescr" };
     return { ok: true, sysDescr };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Connection failed" };
   } finally {
     session.close();
+  }
+}
+
+export async function testConnection(cfg: NasV3Config): Promise<{ ok: boolean; error?: string; sysDescr?: string }> {
+  try {
+    return await attemptTest(cfg);
+  } catch (err) {
+    if (cfg.privKey && isUnsupportedSecurityLevelError(err)) {
+      try {
+        return await attemptTest(withoutPriv(cfg));
+      } catch (err2) {
+        return { ok: false, error: err2 instanceof Error ? err2.message : "Connection failed" };
+      }
+    }
+    return { ok: false, error: err instanceof Error ? err.message : "Connection failed" };
   }
 }
 
@@ -292,10 +335,7 @@ const WALK_LIMIT = 300;
  * different root (e.g. a vendor's private enterprise OID once known) to
  * look elsewhere.
  */
-export async function walk(rootOid = OID.hrStorageTable): Promise<{ ok: boolean; error?: string; entries?: WalkEntry[] }> {
-  const cfg = config();
-  if (!cfg) return { ok: false, error: "not_configured" };
-
+function attemptWalk(cfg: NasV3Config, rootOid: string): Promise<{ ok: boolean; error?: string; entries?: WalkEntry[] }> {
   const session = createSession(cfg);
   const entries: WalkEntry[] = [];
   return new Promise((resolve) => {
@@ -318,4 +358,15 @@ export async function walk(rootOid = OID.hrStorageTable): Promise<{ ok: boolean;
       }
     );
   });
+}
+
+export async function walk(rootOid = OID.hrStorageTable): Promise<{ ok: boolean; error?: string; entries?: WalkEntry[] }> {
+  const cfg = config();
+  if (!cfg) return { ok: false, error: "not_configured" };
+
+  const first = await attemptWalk(cfg, rootOid);
+  if (!first.ok && cfg.privKey && first.error && /unsupported security level/i.test(first.error)) {
+    return attemptWalk(withoutPriv(cfg), rootOid);
+  }
+  return first;
 }

@@ -140,6 +140,12 @@ table on your own configured NAS and shows every OID/type/value it finds, so ven
 documentation that doesn't exist. Auth/privacy keys are stored server-side like every other
 integration's credentials.
 
+The one password ADM collects is used as an SNMPv3 `authPriv` (encrypted) attempt first; if the
+agent reports `Unsupported Security Level` — the standard USM response when a user was never
+provisioned with a privacy/encryption key, which is exactly how ASUSTOR's single-password SNMPv3
+setup works — Homebase automatically retries as `authNoPriv` (authenticated but unencrypted) with
+the same credentials, with no separate setting or manual retry needed.
+
 ## Running locally (development)
 
 ```bash

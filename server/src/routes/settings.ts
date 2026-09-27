@@ -36,9 +36,9 @@ settingsRouter.get("/", (req, res) => {
   visible.prowlarr_configured = String(Boolean(all.prowlarr_url && all.prowlarr_api_key));
   visible.portainer_configured = String(Boolean(all.portainer_url && all.portainer_api_key));
   visible.assistant_configured = String(isAssistantConfigured());
-  visible.nas_configured = String(
-    Boolean(all.nas_snmp_host && all.nas_snmp_username && all.nas_snmp_auth_key && all.nas_snmp_priv_key)
-  );
+  // Privacy (encryption) key is optional — some SNMPv3 setups (e.g. ASUSTOR
+  // ADM) only ever provision an auth-only user, so it's never required here.
+  visible.nas_configured = String(Boolean(all.nas_snmp_host && all.nas_snmp_username && all.nas_snmp_auth_key));
   if (!authed) {
     for (const key of URL_KEYS) delete visible[key];
   }
@@ -133,8 +133,8 @@ const nasTestSchema = z.object({
   username: z.string().min(1),
   authProtocol: z.string().min(1),
   authKey: z.string().min(1),
-  privProtocol: z.string().min(1),
-  privKey: z.string().min(1),
+  privProtocol: z.string().min(1).optional(),
+  privKey: z.string().min(1).optional(),
 });
 
 settingsRouter.post("/nas/test", requireAuth, async (req, res) => {
