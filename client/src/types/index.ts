@@ -149,6 +149,7 @@ export interface LookupResult {
   network: string | null;
   status: string | null;
   existingId: number;
+  link: string | null;
 }
 
 export interface AddOptions {
