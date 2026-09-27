@@ -192,8 +192,11 @@ volume.
     model name already pulled there) or Claude/OpenAI (paste an API key), hit **Test**, and save. The
     "Ask anything" bar appears in the header once a provider is configured.
 12. Optionally connect your NAS under **Settings → NAS** — enable SNMPv3 in your NAS's network
-    services settings first (ASUSTOR: ADM → **Settings → Services → SNMP**), then enter its IP,
-    SNMP username, and the auth/privacy protocols + passwords you configured there, and hit **Test**.
+    services settings first (ASUSTOR: ADM → **Settings → Services → SNMP**, tick **SNMP V3
+    service**), then enter its IP, SNMP username and password (ASUSTOR only asks for those two — no
+    separate auth/privacy passwords to configure) and hit **Test**. If it doesn't connect, open
+    **Advanced options** and try the other auth/privacy protocol combination, since ADM doesn't
+    document which one it uses internally.
 13. Optionally set a password under **Settings → Security** to lock editing.
 
 ## Configuration reference
