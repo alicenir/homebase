@@ -33,11 +33,11 @@ export function SideRail({ onOpenSettings, onOpenLogin }: Props) {
   }
 
   return (
-    <nav className="glass sticky top-8 hidden h-fit shrink-0 flex-col items-center gap-2 rounded-2xl p-2 lg:flex">
+    <nav className="glass sticky top-8 hidden h-fit shrink-0 flex-col items-center gap-3 rounded-2xl p-3 lg:flex">
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         title="Top"
-        className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/20 text-accent"
+        className="flex h-14 w-14 items-center justify-center rounded-xl bg-accent/20 text-2xl text-accent"
       >
         ⌂
       </button>
@@ -46,16 +46,16 @@ export function SideRail({ onOpenSettings, onOpenLogin }: Props) {
           key={link.id}
           onClick={() => scrollTo(link.id)}
           title={link.title}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-muted transition-colors hover-sunken hover:text-ink"
+          className="flex h-14 w-14 items-center justify-center rounded-xl text-2xl text-ink-muted transition-colors hover-sunken hover:text-ink"
         >
           {link.icon}
         </button>
       ))}
-      <div className="hairline my-1 h-px w-6 border-t" />
+      <div className="hairline my-1 h-px w-8 border-t" />
       <button
         onClick={handleSettingsClick}
         title="Settings"
-        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-muted transition-colors hover-sunken hover:text-ink"
+        className="flex h-14 w-14 items-center justify-center rounded-xl text-2xl text-ink-muted transition-colors hover-sunken hover:text-ink"
       >
         ⚙
       </button>

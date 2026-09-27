@@ -13,14 +13,7 @@ export function Greeting({ name }: { name: string }) {
 
   return (
     <div className="min-w-0">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-muted">
-        {now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        <span className="mx-2 text-accent">•</span>
-        <span className="tabular-nums">
-          {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </span>
-      </p>
-      <h1 className="mt-1.5 text-[clamp(2rem,4.2vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-ink">
+      <p className="text-sm font-semibold text-ink-muted">
         {timeGreeting}
         {name ? (
           <>
@@ -28,7 +21,13 @@ export function Greeting({ name }: { name: string }) {
           </>
         ) : null}
         !
+      </p>
+      <h1 className="mt-1 text-[clamp(3rem,7vw,5.5rem)] font-extrabold leading-[1] tracking-tight tabular-nums text-ink">
+        {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </h1>
+      <p className="mt-1.5 text-sm font-medium text-ink-muted">
+        {now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+      </p>
     </div>
   );
 }
