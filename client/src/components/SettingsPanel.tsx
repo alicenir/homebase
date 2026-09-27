@@ -73,6 +73,8 @@ export function SettingsPanel({
     privProtocol: "aes",
     privKey: "",
   });
+  const [nasSeparatePriv, setNasSeparatePriv] = useState(false);
+  const [nasAdvanced, setNasAdvanced] = useState(false);
   const [testingNas, setTestingNas] = useState(false);
   const [nasWalk, setNasWalk] = useState<{ oid: string; type: string; value: string }[] | null>(null);
   const [walkingNas, setWalkingNas] = useState(false);
@@ -391,13 +393,13 @@ export function SettingsPanel({
       authProtocol: nas.authProtocol,
       authKey: nas.authKey,
       privProtocol: nas.privProtocol,
-      privKey: nas.privKey,
+      privKey: nasSeparatePriv ? nas.privKey : nas.authKey,
     };
   }
 
   async function testNas() {
-    if (!nas.host || !nas.username || !nas.authKey || !nas.privKey) {
-      return toast.error("Enter host, username, and both SNMPv3 passwords");
+    if (!nas.host || !nas.username || !nas.authKey || (nasSeparatePriv && !nas.privKey)) {
+      return toast.error("Enter host, username, and password");
     }
     setTestingNas(true);
     try {
@@ -423,7 +425,8 @@ export function SettingsPanel({
       nas_snmp_priv_protocol: nas.privProtocol,
     };
     if (nas.authKey) payload.nas_snmp_auth_key = nas.authKey;
-    if (nas.privKey) payload.nas_snmp_priv_key = nas.privKey;
+    const privKey = nasSeparatePriv ? nas.privKey : nas.authKey;
+    if (privKey) payload.nas_snmp_priv_key = privKey;
     await api.put("/settings", payload);
     setSettings({
       ...settings!,
@@ -1251,7 +1254,9 @@ export function SettingsPanel({
                   <h2 className="text-lg font-semibold">NAS (via SNMPv3)</h2>
                   <p className="text-sm text-ink-muted">
                     Standard SNMP (Host Resources MIB) gives CPU load, memory and volume usage — no
-                    vendor-specific API needed. Enable SNMPv3 in ADM's network services settings first.
+                    vendor-specific API needed. In ADM, enable it under <strong>Settings → Services →
+                    SNMP</strong> and tick <strong>SNMP V3 service</strong> — enter that same username and
+                    password below.
                   </p>
 
                   <label className="text-sm text-ink-muted">
@@ -1280,53 +1285,78 @@ export function SettingsPanel({
                       className="field mt-1"
                     />
                   </label>
+                  <label className="text-sm text-ink-muted">
+                    Password
+                    <input
+                      type="password"
+                      value={nas.authKey}
+                      onChange={(e) => setNas((s) => ({ ...s, authKey: e.target.value }))}
+                      placeholder={settings?.nas_configured === "true" ? "•••• (unchanged)" : ""}
+                      className="field mt-1"
+                    />
+                  </label>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="text-sm text-ink-muted">
-                      Auth protocol
-                      <select
-                        value={nas.authProtocol}
-                        onChange={(e) => setNas((s) => ({ ...s, authProtocol: e.target.value }))}
-                        className="field mt-1"
-                      >
-                        <option value="sha">SHA</option>
-                        <option value="md5">MD5</option>
-                      </select>
-                    </label>
-                    <label className="text-sm text-ink-muted">
-                      Auth password
-                      <input
-                        type="password"
-                        value={nas.authKey}
-                        onChange={(e) => setNas((s) => ({ ...s, authKey: e.target.value }))}
-                        placeholder={settings?.nas_configured === "true" ? "•••• (unchanged)" : ""}
-                        className="field mt-1"
-                      />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="text-sm text-ink-muted">
-                      Privacy protocol
-                      <select
-                        value={nas.privProtocol}
-                        onChange={(e) => setNas((s) => ({ ...s, privProtocol: e.target.value }))}
-                        className="field mt-1"
-                      >
-                        <option value="aes">AES</option>
-                        <option value="des">DES</option>
-                      </select>
-                    </label>
-                    <label className="text-sm text-ink-muted">
-                      Privacy password
-                      <input
-                        type="password"
-                        value={nas.privKey}
-                        onChange={(e) => setNas((s) => ({ ...s, privKey: e.target.value }))}
-                        placeholder={settings?.nas_configured === "true" ? "•••• (unchanged)" : ""}
-                        className="field mt-1"
-                      />
-                    </label>
-                  </div>
+                  <button
+                    onClick={() => setNasAdvanced((v) => !v)}
+                    className="self-start text-xs font-medium text-accent"
+                  >
+                    {nasAdvanced ? "Hide advanced options" : "Advanced options"}
+                  </button>
+
+                  {nasAdvanced && (
+                    <div className="flex flex-col gap-3 rounded-xl sunken-strong p-3">
+                      <p className="text-xs text-ink-muted">
+                        ASUSTOR's SNMPv3 setup doesn't expose which auth/privacy protocol or whether a
+                        separate privacy password it uses internally — SHA + AES with the same password
+                        for both is tried by default. If <strong>Test</strong> fails, try the other
+                        combinations here.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-sm text-ink-muted">
+                          Auth protocol
+                          <select
+                            value={nas.authProtocol}
+                            onChange={(e) => setNas((s) => ({ ...s, authProtocol: e.target.value }))}
+                            className="field mt-1"
+                          >
+                            <option value="sha">SHA</option>
+                            <option value="md5">MD5</option>
+                          </select>
+                        </label>
+                        <label className="text-sm text-ink-muted">
+                          Privacy protocol
+                          <select
+                            value={nas.privProtocol}
+                            onChange={(e) => setNas((s) => ({ ...s, privProtocol: e.target.value }))}
+                            className="field mt-1"
+                          >
+                            <option value="aes">AES</option>
+                            <option value="des">DES</option>
+                          </select>
+                        </label>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-ink-muted">
+                        <input
+                          type="checkbox"
+                          checked={nasSeparatePriv}
+                          onChange={(e) => setNasSeparatePriv(e.target.checked)}
+                        />
+                        Use a different privacy password
+                      </label>
+                      {nasSeparatePriv && (
+                        <label className="text-sm text-ink-muted">
+                          Privacy password
+                          <input
+                            type="password"
+                            value={nas.privKey}
+                            onChange={(e) => setNas((s) => ({ ...s, privKey: e.target.value }))}
+                            placeholder={settings?.nas_configured === "true" ? "•••• (unchanged)" : ""}
+                            className="field mt-1"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  )}
 
                   <div className="ml-auto flex gap-2">
                     <button onClick={testNas} disabled={testingNas} className="btn-outline disabled:opacity-50">
