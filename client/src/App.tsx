@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AddMediaModal } from "./components/AddMediaModal";
+import { AiSearchBar } from "./components/AiSearchBar";
 import { AppGrid } from "./components/AppGrid";
 import { AssistantChat } from "./components/AssistantChat";
 import { HostStatsWidget } from "./components/HostStatsWidget";
@@ -138,7 +139,10 @@ export default function App() {
             setSettingsOpen(true);
           }}
           onOpenLogin={() => setLoginOpen(true)}
-          onAskAssistant={(question) => {
+        />
+
+        <AiSearchBar
+          onAsk={(question) => {
             setAssistantQuestion(question);
             setAssistantOpen(true);
           }}

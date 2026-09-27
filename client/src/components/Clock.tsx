@@ -22,7 +22,7 @@ export function Greeting({ name }: { name: string }) {
         ) : null}
         !
       </p>
-      <h1 className="mt-1 text-[clamp(1.75rem,3.4vw,2.75rem)] font-extrabold leading-[1.1] tracking-tight tabular-nums text-ink">
+      <h1 className="mt-1 text-[clamp(1.75rem,4vw,3.25rem)] font-extrabold leading-[1.1] tracking-tight tabular-nums text-ink">
         {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </h1>
       <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-muted">

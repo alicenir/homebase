@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useStore } from "../store/useStore";
 import { Greeting } from "./Clock";
 import { SearchBar } from "./SearchBar";
@@ -8,10 +7,9 @@ interface Props {
   onQueryChange: (q: string) => void;
   onOpenSettings: () => void;
   onOpenLogin: () => void;
-  onAskAssistant: (question: string) => void;
 }
 
-export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin, onAskAssistant }: Props) {
+export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin }: Props) {
   const settings = useStore((s) => s.settings);
   const authed = useStore((s) => s.authed);
   const hasPassword = useStore((s) => s.hasPassword);
@@ -20,9 +18,6 @@ export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin, onAs
   const mediaConfigured = useStore((s) => s.mediaConfigured);
   const setAddMediaOpen = useStore((s) => s.setAddMediaOpen);
   const health = useStore((s) => s.health);
-  const assistantConfigured = settings?.assistant_configured === "true";
-
-  const [ask, setAsk] = useState("");
 
   const hasIssue = Object.values(health).some((h) => h.state === "down");
 
@@ -59,46 +54,9 @@ export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin, onAs
     document.getElementById("status-row")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function submitAsk() {
-    const q = ask.trim();
-    if (!q) return;
-    onAskAssistant(q);
-    setAsk("");
-  }
-
   return (
-    <header className="glass flex flex-col gap-5 rounded-3xl p-5 sm:p-7 lg:flex-row lg:items-center lg:gap-6">
+    <header className="glass flex flex-col gap-5 rounded-3xl p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
       <Greeting name={settings?.greeting_name ?? ""} />
-
-      {/* Sits between the greeting and the icon row so the hero's middle
-          doesn't read as dead space — grows to fill whatever room is left
-          on wide screens, and only when there's actually something to put
-          there (no assistant configured = no gap to fill, so no spacer). */}
-      {assistantConfigured && (
-        <div className="w-full lg:max-w-xl lg:flex-1">
-          <div className="sunken flex items-center gap-2 rounded-2xl p-1.5 pl-4">
-            <span className="text-accent">✦</span>
-            <input
-              value={ask}
-              onChange={(e) => setAsk(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitAsk()}
-              placeholder="Ask anything…"
-              className="min-w-0 flex-1 bg-transparent py-2 text-sm text-ink placeholder:text-ink-muted focus:outline-none"
-            />
-            <button
-              onClick={submitAsk}
-              disabled={!ask.trim()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-              title="Ask"
-            >
-              →
-            </button>
-          </div>
-          <p className="mt-2 px-1 text-center text-xs text-ink-muted">
-            Ask about your downloads, media, containers, indexers and more.
-          </p>
-        </div>
-      )}
 
       <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:shrink-0 lg:justify-end">
         <span className="hairline hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold text-emerald-400 sm:flex">
