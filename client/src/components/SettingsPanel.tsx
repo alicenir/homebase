@@ -6,7 +6,7 @@ import { useStore } from "../store/useStore";
 import type { GeocodeResult } from "../types";
 
 const ACCENTS = ["#7c5cff", "#22c55e", "#f97316", "#ef4444", "#06b6d4", "#ec4899"];
-const TABS = ["General", "Appearance", "Weather", "Downloads", "Media", "Indexers", "Plex", "Docker", "Car", "Assistant", "Categories", "Security"] as const;
+const TABS = ["General", "Appearance", "Weather", "Downloads", "Media", "Indexers", "Plex", "Docker", "Car", "Assistant", "NAS", "Categories", "Security"] as const;
 
 type TabName = (typeof TABS)[number];
 
@@ -64,6 +64,18 @@ export function SettingsPanel({
     openaiModel: "",
   });
   const [testingAssistant, setTestingAssistant] = useState(false);
+  const [nas, setNas] = useState({
+    host: "",
+    port: "161",
+    username: "",
+    authProtocol: "sha",
+    authKey: "",
+    privProtocol: "aes",
+    privKey: "",
+  });
+  const [testingNas, setTestingNas] = useState(false);
+  const [nasWalk, setNasWalk] = useState<{ oid: string; type: string; value: string }[] | null>(null);
+  const [walkingNas, setWalkingNas] = useState(false);
   const [placeQuery, setPlaceQuery] = useState("");
   const [places, setPlaces] = useState<GeocodeResult[]>([]);
   const [searchingPlace, setSearchingPlace] = useState(false);
@@ -111,6 +123,15 @@ export function SettingsPanel({
       anthropicModel: settings.assistant_anthropic_model ?? "",
       openaiApiKey: "",
       openaiModel: settings.assistant_openai_model ?? "",
+    });
+    setNas({
+      host: settings.nas_snmp_host ?? "",
+      port: settings.nas_snmp_port ?? "161",
+      username: settings.nas_snmp_username ?? "",
+      authProtocol: settings.nas_snmp_auth_protocol ?? "sha",
+      authKey: "",
+      privProtocol: settings.nas_snmp_priv_protocol ?? "aes",
+      privKey: "",
     });
   }, [settings, open]);
 
@@ -360,6 +381,80 @@ export function SettingsPanel({
     });
     setAssistant((s) => ({ ...s, anthropicApiKey: "", openaiApiKey: "" }));
     toast.success("Assistant saved");
+  }
+
+  function nasPayload() {
+    return {
+      host: nas.host,
+      port: nas.port,
+      username: nas.username,
+      authProtocol: nas.authProtocol,
+      authKey: nas.authKey,
+      privProtocol: nas.privProtocol,
+      privKey: nas.privKey,
+    };
+  }
+
+  async function testNas() {
+    if (!nas.host || !nas.username || !nas.authKey || !nas.privKey) {
+      return toast.error("Enter host, username, and both SNMPv3 passwords");
+    }
+    setTestingNas(true);
+    try {
+      const result = await api.post<{ ok: boolean; error?: string; sysDescr?: string }>(
+        "/settings/nas/test",
+        nasPayload()
+      );
+      if (result.ok) toast.success(result.sysDescr ? `Connected — ${result.sysDescr}` : "Connected");
+      else toast.error(result.error ?? "Connection failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Connection failed");
+    } finally {
+      setTestingNas(false);
+    }
+  }
+
+  async function saveNas() {
+    const payload: Record<string, string> = {
+      nas_snmp_host: nas.host,
+      nas_snmp_port: nas.port,
+      nas_snmp_username: nas.username,
+      nas_snmp_auth_protocol: nas.authProtocol,
+      nas_snmp_priv_protocol: nas.privProtocol,
+    };
+    if (nas.authKey) payload.nas_snmp_auth_key = nas.authKey;
+    if (nas.privKey) payload.nas_snmp_priv_key = nas.privKey;
+    await api.put("/settings", payload);
+    setSettings({
+      ...settings!,
+      nas_snmp_host: nas.host,
+      nas_snmp_port: nas.port,
+      nas_snmp_username: nas.username,
+      nas_snmp_auth_protocol: nas.authProtocol,
+      nas_snmp_priv_protocol: nas.privProtocol,
+      nas_configured: String(
+        Boolean(nas.host && nas.username && (nas.authKey || settings!.nas_configured === "true"))
+      ),
+    });
+    setNas((s) => ({ ...s, authKey: "", privKey: "" }));
+    toast.success("NAS saved");
+  }
+
+  async function runNasWalk() {
+    setWalkingNas(true);
+    setNasWalk(null);
+    try {
+      const result = await api.post<{ ok: boolean; error?: string; entries?: typeof nasWalk }>(
+        "/nas/walk",
+        {}
+      );
+      if (result.ok) setNasWalk(result.entries ?? []);
+      else toast.error(result.error ?? "Walk failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Walk failed");
+    } finally {
+      setWalkingNas(false);
+    }
   }
 
   async function testPlex() {
@@ -1146,6 +1241,123 @@ export function SettingsPanel({
                       <button onClick={saveAssistant} className="btn-primary">
                         Save
                       </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tab === "NAS" && (
+                <div className="flex flex-col gap-4">
+                  <h2 className="text-lg font-semibold">NAS (via SNMPv3)</h2>
+                  <p className="text-sm text-ink-muted">
+                    Standard SNMP (Host Resources MIB) gives CPU load, memory and volume usage — no
+                    vendor-specific API needed. Enable SNMPv3 in ADM's network services settings first.
+                  </p>
+
+                  <label className="text-sm text-ink-muted">
+                    Host
+                    <input
+                      value={nas.host}
+                      onChange={(e) => setNas((s) => ({ ...s, host: e.target.value }))}
+                      placeholder="192.168.1.50"
+                      className="field mt-1"
+                    />
+                  </label>
+                  <label className="text-sm text-ink-muted">
+                    Port
+                    <input
+                      value={nas.port}
+                      onChange={(e) => setNas((s) => ({ ...s, port: e.target.value }))}
+                      placeholder="161"
+                      className="field mt-1"
+                    />
+                  </label>
+                  <label className="text-sm text-ink-muted">
+                    Username
+                    <input
+                      value={nas.username}
+                      onChange={(e) => setNas((s) => ({ ...s, username: e.target.value }))}
+                      className="field mt-1"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-sm text-ink-muted">
+                      Auth protocol
+                      <select
+                        value={nas.authProtocol}
+                        onChange={(e) => setNas((s) => ({ ...s, authProtocol: e.target.value }))}
+                        className="field mt-1"
+                      >
+                        <option value="sha">SHA</option>
+                        <option value="md5">MD5</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-ink-muted">
+                      Auth password
+                      <input
+                        type="password"
+                        value={nas.authKey}
+                        onChange={(e) => setNas((s) => ({ ...s, authKey: e.target.value }))}
+                        placeholder={settings?.nas_configured === "true" ? "•••• (unchanged)" : ""}
+                        className="field mt-1"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-sm text-ink-muted">
+                      Privacy protocol
+                      <select
+                        value={nas.privProtocol}
+                        onChange={(e) => setNas((s) => ({ ...s, privProtocol: e.target.value }))}
+                        className="field mt-1"
+                      >
+                        <option value="aes">AES</option>
+                        <option value="des">DES</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-ink-muted">
+                      Privacy password
+                      <input
+                        type="password"
+                        value={nas.privKey}
+                        onChange={(e) => setNas((s) => ({ ...s, privKey: e.target.value }))}
+                        placeholder={settings?.nas_configured === "true" ? "•••• (unchanged)" : ""}
+                        className="field mt-1"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="ml-auto flex gap-2">
+                    <button onClick={testNas} disabled={testingNas} className="btn-outline disabled:opacity-50">
+                      {testingNas ? "Testing…" : "Test"}
+                    </button>
+                    <button onClick={saveNas} className="btn-primary">
+                      Save
+                    </button>
+                  </div>
+
+                  {settings?.nas_configured === "true" && (
+                    <div className="hairline mt-2 flex flex-col gap-2 border-t pt-4">
+                      <p className="text-sm text-ink-muted">
+                        ASUSTOR has no public docs for per-disk temperature/SMART OIDs. This walks the
+                        saved NAS's Host Resources storage table so real OIDs can be found instead of
+                        guessed — share the results if you want that level of detail added.
+                      </p>
+                      <button
+                        onClick={runNasWalk}
+                        disabled={walkingNas}
+                        className="btn-outline self-start disabled:opacity-50"
+                      >
+                        {walkingNas ? "Walking…" : "Run diagnostic walk"}
+                      </button>
+                      {nasWalk && (
+                        <pre className="scrollbar-thin max-h-48 overflow-y-auto rounded-xl sunken-strong p-3 text-[11px] text-ink-muted">
+                          {nasWalk.length === 0
+                            ? "No entries returned."
+                            : nasWalk.map((e) => `${e.oid}  (${e.type})  ${e.value}`).join("\n")}
+                        </pre>
+                      )}
                     </div>
                   )}
                 </div>
