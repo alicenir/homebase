@@ -62,9 +62,9 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
         {/* flex + basis instead of a plain grid: a trailing row that doesn't
-            fill every column (11 apps in a 4-column grid, say) would otherwise
-            leave a gap on the right. flex-grow lets a short last row's cards
-            stretch to fill it, the way a full row already does. */}
+            fill every column (11 apps in a 4-column grid, say) leaves a gap
+            on the right rather than stretching one card to fill it — every
+            tile stays the same size regardless of row position. */}
         <div className="flex flex-wrap gap-2 sm:gap-2.5">
           {items.map((item) => (
             <AppCard
@@ -74,7 +74,7 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
               editMode={editMode}
               onEdit={onEdit}
               onDelete={handleDelete}
-              className={`grow ${TILE_BASIS}`}
+              className={`grow-0 ${TILE_BASIS}`}
             />
           ))}
           {editMode && onAddClick && (

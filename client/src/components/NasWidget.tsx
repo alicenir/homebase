@@ -62,34 +62,36 @@ export function NasWidget() {
           Settings.
         </p>
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-start justify-around gap-2">
+        <div className="flex flex-col gap-5 sm:flex-row">
+          <div className="flex shrink-0 justify-center gap-6 sm:flex-col sm:items-center sm:justify-start">
             <Gauge value={snapshot.cpuLoadPercent} label="CPU" color="#38bdf8" />
             <Gauge value={memPercent} label="Memory" color="#a78bfa" />
           </div>
 
           {snapshot.volumes.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {snapshot.volumes.map((v) => {
-                const usedPct = pct(v.usedBytes, v.totalBytes);
-                return (
-                  <li key={v.name} className="text-xs">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="min-w-0 truncate font-medium text-ink">{v.name}</span>
-                      <span className="shrink-0 text-ink-muted">
-                        {formatBytes(v.usedBytes)} / {formatBytes(v.totalBytes)}
-                      </span>
+            <div className="min-w-0 flex-1 sm:border-l sm:border-white/10 sm:pl-5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-4 gap-y-3">
+                {snapshot.volumes.map((v) => {
+                  const usedPct = pct(v.usedBytes, v.totalBytes);
+                  return (
+                    <div key={v.name} className="text-xs">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate font-medium text-ink" title={v.name}>{v.name}</span>
+                        <span className="shrink-0 text-ink-muted">
+                          {formatBytes(v.usedBytes)} / {formatBytes(v.totalBytes)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full sunken-strong">
+                        <div
+                          className="h-full rounded-full bg-accent"
+                          style={{ width: `${usedPct ?? 0}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full sunken-strong">
-                      <div
-                        className="h-full rounded-full bg-accent"
-                        style={{ width: `${usedPct ?? 0}%` }}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       )}
