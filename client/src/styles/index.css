@@ -60,6 +60,22 @@ body {
   background-attachment: fixed;
 }
 
+/* An optional user-supplied photo background (Settings → Appearance) takes
+   over from the accent blooms above. The scrim keeps glass cards readable
+   regardless of how bright the photo is; it's stronger in light mode, where
+   dark ink text needs more contrast against a busy image. */
+body[data-bg-photo] {
+  background-image:
+    linear-gradient(180deg, rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.7)), var(--bg-photo);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+:root.light body[data-bg-photo] {
+  background-image:
+    linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.8)), var(--bg-photo);
+}
+
 .glass {
   background-color: rgb(var(--surface) / 0.62);
   border: 1px solid rgb(var(--line) / var(--line-opacity));

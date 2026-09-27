@@ -34,6 +34,7 @@ export function SettingsPanel({
   const [searchEngine, setSearchEngine] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [accent, setAccent] = useState("#7c5cff");
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState("");
   const [sabUrl, setSabUrl] = useState("");
   const [sabKey, setSabKey] = useState("");
   const [testing, setTesting] = useState(false);
@@ -81,6 +82,7 @@ export function SettingsPanel({
     setSearchEngine(settings.search_engine ?? "");
     setTheme((settings.theme as "dark" | "light") ?? "dark");
     setAccent(settings.accent_color ?? "#7c5cff");
+    setBackgroundImageUrl(settings.background_image_url ?? "");
     setSabUrl(settings.sabnzbd_url ?? "");
     setPlex({ url: settings.tautulli_url ?? "", apiKey: "" });
     setProwlarr({ url: settings.prowlarr_url ?? "", apiKey: "" });
@@ -123,6 +125,13 @@ export function SettingsPanel({
     setSettings({ ...settings!, theme: nextTheme, accent_color: nextAccent });
     document.documentElement.classList.toggle("light", nextTheme === "light");
     document.documentElement.style.setProperty("--accent", nextAccent);
+  }
+
+  async function saveBackgroundImage() {
+    const url = backgroundImageUrl.trim();
+    await api.put("/settings", { background_image_url: url });
+    setSettings({ ...settings!, background_image_url: url });
+    toast.success(url ? "Background image saved" : "Background image cleared");
   }
 
   async function testSabnzbd() {
@@ -582,6 +591,39 @@ export function SettingsPanel({
                         />
                       ))}
                     </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-sm text-ink-muted">
+                      Background photo <span className="text-ink-muted/60">(optional)</span>
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        value={backgroundImageUrl}
+                        onChange={(e) => setBackgroundImageUrl(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && saveBackgroundImage()}
+                        placeholder="https://example.com/your-photo.jpg"
+                        className="field flex-1"
+                      />
+                      <button onClick={saveBackgroundImage} className="btn-primary shrink-0">
+                        Save
+                      </button>
+                    </div>
+                    {backgroundImageUrl.trim() && (
+                      <div className="mt-3 h-28 w-full overflow-hidden rounded-xl sunken-strong">
+                        <img
+                          src={backgroundImageUrl.trim()}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      </div>
+                    )}
+                    <p className="mt-2 text-xs text-ink-muted">
+                      A link to any image — shown full-bleed behind the dashboard, dimmed so cards
+                      stay readable. Leave blank to keep the plain background.
+                    </p>
                   </div>
                 </div>
               )}

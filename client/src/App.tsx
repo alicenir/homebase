@@ -55,6 +55,18 @@ export default function App() {
     if (!settings) return;
     document.documentElement.classList.toggle("light", settings.theme === "light");
     document.documentElement.style.setProperty("--accent", settings.accent_color);
+
+    const bg = settings.background_image_url?.trim();
+    if (bg) {
+      // JSON.stringify quotes and escapes the URL safely for use inside url(...)
+      // — this is a background-image, not markup, so there's no injection risk,
+      // just malformed CSS if a raw quote in the URL weren't escaped.
+      document.body.style.setProperty("--bg-photo", `url(${JSON.stringify(bg)})`);
+      document.body.setAttribute("data-bg-photo", "true");
+    } else {
+      document.body.removeAttribute("data-bg-photo");
+      document.body.style.removeProperty("--bg-photo");
+    }
   }, [settings]);
 
   useEffect(() => {
