@@ -23,6 +23,8 @@ interface PosterItem {
   title: string;
   subtitle?: string;
   poster: string | null;
+  /** Deep link into Sonarr/Radarr, when the tool result carried one. */
+  link: string | null;
 }
 
 // The model only ever gets these tool results as text, so it can describe a
@@ -40,6 +42,7 @@ function extractPosters(toolName: string | undefined, content: string): PosterIt
         title: r.title ?? "Unknown",
         subtitle: r.year ? String(r.year) : undefined,
         poster: r.poster ?? null,
+        link: r.link ?? null,
       }));
     }
     if ((toolName === "get_recently_added" || toolName === "get_upcoming") && Array.isArray(data.items)) {
@@ -48,12 +51,40 @@ function extractPosters(toolName: string | undefined, content: string): PosterIt
         title: r.title,
         subtitle: r.subtitle,
         poster: r.poster ?? null,
+        link: r.link ?? null,
       }));
     }
   } catch {
     /* not JSON, or not a shape with posters — nothing to show */
   }
   return [];
+}
+
+// The model's replies come back as plain text but the providers all write in
+// markdown (**bold**, backtick code) — showing the raw asterisks looks
+// broken. This is intentionally not a full markdown parser (no lists,
+// links, headings): chat replies are a sentence or two, so bold, code and
+// line breaks cover what actually shows up in practice.
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\n)/g);
+  return parts.map((part, i) => {
+    if (part === "\n") return <br key={i} />;
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={i} className="font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return (
+        <code key={i} className="rounded sunken-strong px-1 py-0.5 text-[0.9em]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
 }
 
 // get_recently_added / get_upcoming answer "what's in the library" and can
@@ -125,22 +156,33 @@ function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
 
 function PosterStrip({ items }: { items: PosterItem[] }) {
   return (
-    <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-      {items.map((item) => (
-        <div key={item.key} className="w-20 shrink-0">
-          <div className="aspect-[2/3] w-full overflow-hidden rounded-lg sunken-strong">
+    <div className="scrollbar-thin -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+      {items.map((item) => {
+        const art = (
+          <div className="aspect-[2/3] w-full overflow-hidden rounded-lg sunken-strong transition-opacity group-hover:opacity-80">
             {item.poster ? (
               <img src={item.poster} alt="" loading="lazy" className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center p-1 text-center text-[9px] font-semibold uppercase text-ink-muted">
+              <div className="flex h-full w-full items-center justify-center p-1.5 text-center text-[10px] font-semibold uppercase text-ink-muted">
                 {item.title}
               </div>
             )}
           </div>
-          <p className="mt-1 truncate text-[10px] font-medium text-ink">{item.title}</p>
-          {item.subtitle && <p className="truncate text-[9px] text-ink-muted">{item.subtitle}</p>}
-        </div>
-      ))}
+        );
+        return (
+          <div key={item.key} className="w-28 shrink-0">
+            {item.link ? (
+              <a href={item.link} target="_blank" rel="noreferrer" className="group block" title="Open in Sonarr/Radarr">
+                {art}
+              </a>
+            ) : (
+              art
+            )}
+            <p className="mt-1.5 truncate text-xs font-medium text-ink">{item.title}</p>
+            {item.subtitle && <p className="truncate text-[10px] text-ink-muted">{item.subtitle}</p>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -282,13 +324,13 @@ export function AssistantChat({
                     ) : (
                       <div
                         key={item.key}
-                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                           item.role === "user"
                             ? "ml-auto bg-accent text-white"
                             : "sunken mr-auto text-ink"
                         }`}
                       >
-                        {item.content}
+                        {item.role === "assistant" ? renderInlineMarkdown(item.content) : item.content}
                       </div>
                     )
                   )}

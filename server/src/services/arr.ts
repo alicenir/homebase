@@ -363,6 +363,8 @@ export interface LookupResult {
   status: string | null;
   /** > 0 when Radarr/Sonarr already track this, so we can stop a duplicate add. */
   existingId: number;
+  /** Only set when existingId > 0 — an item that isn't in the library yet has no page to link to. */
+  link: string | null;
 }
 
 export interface AddOptions {
@@ -383,21 +385,30 @@ export async function lookup(service: ArrService, term: string): Promise<LookupR
   const results = await callArr(service, path, { term });
   if (!Array.isArray(results)) return [];
 
-  return results.slice(0, 20).map((r: any) => ({
-    service,
-    kind: service === "radarr" ? ("movie" as const) : ("series" as const),
-    externalId: service === "radarr" ? (r.tmdbId ?? 0) : (r.tvdbId ?? 0),
-    title: r.title ?? "Unknown",
-    year: r.year ?? null,
-    overview: r.overview ?? "",
-    poster: lookupPoster(r.images),
-    runtime: r.runtime ?? null,
-    genres: r.genres ?? [],
-    rating: r.ratings?.tmdb?.value ?? r.ratings?.value ?? null,
-    network: r.network ?? null,
-    status: r.status ?? null,
-    existingId: r.id ?? 0,
-  }));
+  const cfg = config(service);
+
+  return results.slice(0, 20).map((r: any) => {
+    const existingId = r.id ?? 0;
+    return {
+      service,
+      kind: service === "radarr" ? ("movie" as const) : ("series" as const),
+      externalId: service === "radarr" ? (r.tmdbId ?? 0) : (r.tvdbId ?? 0),
+      title: r.title ?? "Unknown",
+      year: r.year ?? null,
+      overview: r.overview ?? "",
+      poster: lookupPoster(r.images),
+      runtime: r.runtime ?? null,
+      genres: r.genres ?? [],
+      rating: r.ratings?.tmdb?.value ?? r.ratings?.value ?? null,
+      network: r.network ?? null,
+      status: r.status ?? null,
+      existingId,
+      link:
+        existingId > 0 && cfg && r.titleSlug
+          ? `${cfg.url}/${service === "radarr" ? "movie" : "series"}/${r.titleSlug}`
+          : null,
+    };
+  });
 }
 
 export async function getAddOptions(service: ArrService): Promise<AddOptions> {
