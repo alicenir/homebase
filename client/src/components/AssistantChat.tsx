@@ -57,16 +57,30 @@ function extractPosters(toolName: string | undefined, content: string): PosterIt
 }
 
 // get_recently_added / get_upcoming answer "what's in the library" and can
-// come back with a dozen unrelated titles — asking "was Backrooms downloaded"
-// shouldn't show American Horror Story and MobLand alongside it just because
-// the model checked the whole recently-added list to answer. Narrow to
-// whatever the triggering question actually named, when it named anything;
-// a broad question ("what's recently added") won't match anything, so it
-// falls back to the full list, which is the right behavior for a browse.
-function filterToQuestion(items: PosterItem[], question: string | undefined): PosterItem[] {
-  if (!question) return items;
-  const q = question.toLowerCase();
-  const matches = items.filter((item) => q.includes(item.title.toLowerCase()));
+// come back with a dozen unrelated titles. Matching only the user's question
+// catches a direct "was Backrooms downloaded" (it names the title), but not
+// "what movies were downloaded in the past 3 days" — that names a category
+// and a time window, not a title, so nothing in the question matches any
+// item, and everything unrelated still slipped through. The model's own
+// answer is a better signal: it already did the filtering in prose ("here
+// are the movies: Backrooms, The Love Hypothesis, Toy Story 5"), so matching
+// against *that* text catches exactly the items the answer is actually
+// about. Checked against both the question and the answer — either one
+// naming an item is enough to keep it — and only falls back to the full,
+// unfiltered list when neither text names anything at all, which is the
+// right behavior for a genuine browse ("what's recently added").
+function filterToConversation(
+  items: PosterItem[],
+  question: string | undefined,
+  answer: string | undefined
+): PosterItem[] {
+  if (!question && !answer) return items;
+  const q = question?.toLowerCase() ?? "";
+  const a = answer?.toLowerCase() ?? "";
+  const matches = items.filter((item) => {
+    const title = item.title.toLowerCase();
+    return q.includes(title) || a.includes(title);
+  });
   return matches.length > 0 ? matches : items;
 }
 
@@ -84,6 +98,7 @@ function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
     if (m.role === "tool") {
       const raw = extractPosters(m.toolName, m.content);
       if (raw.length === 0) return;
+
       let question: string | undefined;
       for (let j = i - 1; j >= 0; j--) {
         if (messages[j].role === "user") {
@@ -91,7 +106,17 @@ function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
           break;
         }
       }
-      const items = filterToQuestion(raw, question);
+
+      let answer: string | undefined;
+      for (let j = i + 1; j < messages.length; j++) {
+        if (messages[j].role === "user") break; // next turn — not this one's answer
+        if (messages[j].role === "assistant" && messages[j].content.trim()) {
+          answer = messages[j].content;
+          break;
+        }
+      }
+
+      const items = filterToConversation(raw, question, answer);
       if (items.length > 0) out.push({ kind: "posters", key: i, items });
     }
   });
