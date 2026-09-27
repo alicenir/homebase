@@ -143,18 +143,22 @@ export default function App() {
 
           {/* Live status first. auto-fit keeps the row filled no matter how many
               of these are configured, and empty:hidden avoids a stray gap when
-              none of them are. items-start stops a busy download queue from
-              stretching the shorter cards. */}
+              none of them are. Cards in a row stretch to match the tallest one
+              (default grid behavior) so a row reads as a consistent set of
+              tiles rather than a staggered mix of heights. */}
           <section id="status-row" className="scroll-mt-6">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-start gap-6 empty:hidden">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-6 empty:hidden">
               <SabnzbdWidget />
               <NowPlayingWidget />
               <TeslaWidget />
               <WeatherWidget />
               <ProwlarrWidget />
-              <PortainerWidget />
             </div>
-            <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] items-start gap-6 empty:hidden">
+            {/* Infrastructure widgets grouped together, separately from the
+                activity ones above — Containers belongs with Docker host,
+                not with downloads/media/car/weather. */}
+            <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6 empty:hidden">
+              <PortainerWidget />
               <HostStatsWidget />
               <ServiceStatusWidget />
               <UptimeWidget />

@@ -29,8 +29,10 @@ function Poster({ item }: { item: UpcomingItem }) {
   const [failed, setFailed] = useState(false);
   if (!item.poster || failed) {
     return (
-      <div className="flex h-full w-full items-center justify-center sunken-strong p-1 text-center">
-        <span className="text-[10px] font-semibold uppercase text-ink-muted">{item.title}</span>
+      <div className="flex h-full w-full items-center justify-center sunken-strong p-2 text-center">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          {item.title}
+        </span>
       </div>
     );
   }
@@ -42,6 +44,47 @@ function Poster({ item }: { item: UpcomingItem }) {
       onError={() => setFailed(true)}
       className="h-full w-full object-cover"
     />
+  );
+}
+
+// Same visual weight as a Recently Added poster card — this used to be a
+// compact text list, which read as an afterthought sitting next to that
+// section's big poster grid.
+function UpcomingCard({ item }: { item: UpcomingItem }) {
+  return (
+    <motion.a
+      href={item.link ?? undefined}
+      target="_blank"
+      rel="noreferrer"
+      whileHover={{ y: -4 }}
+      className={`group relative block overflow-hidden rounded-xl ${item.hasFile ? "opacity-60" : ""}`}
+      title={item.overview || item.title}
+    >
+      <div className="aspect-[2/3] w-full overflow-hidden rounded-xl">
+        <Poster item={item} />
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2.5 pt-8">
+        <p className="truncate text-xs font-bold text-white">{item.title}</p>
+        <p className="truncate text-[11px] text-white/70">{item.subtitle}</p>
+      </div>
+
+      <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">
+        {airTime(item.airsAt)}
+      </span>
+
+      {item.hasFile ? (
+        <span className="absolute right-2 top-2 rounded bg-emerald-500/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          Downloaded
+        </span>
+      ) : (
+        item.network && (
+          <span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white/80">
+            {item.network}
+          </span>
+        )
+      )}
+    </motion.a>
   );
 }
 
@@ -83,43 +126,15 @@ export function UpcomingSection() {
         Upcoming
       </SectionHeading>
 
-      <div className="grid grid-cols-1 items-start gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="flex flex-col gap-6">
         {groups.map((group) => (
           <div key={group.label}>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-accent">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">
               {group.label}
             </p>
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
               {group.items.map((item) => (
-                <motion.a
-                  key={item.id}
-                  href={item.link ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  whileHover={{ x: 2 }}
-                  className={`flex items-center gap-3 rounded-xl p-2 transition-colors hover-sunken ${
-                    item.hasFile ? "opacity-60" : ""
-                  }`}
-                  title={item.overview || item.title}
-                >
-                  <div className="h-14 w-10 shrink-0 overflow-hidden rounded-lg">
-                    <Poster item={item} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
-                    <p className="truncate text-[11px] text-ink-muted">{item.subtitle}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs font-semibold tabular-nums text-ink">
-                      {airTime(item.airsAt)}
-                    </p>
-                    {item.hasFile ? (
-                      <p className="text-[10px] text-emerald-400/80">Downloaded</p>
-                    ) : (
-                      item.network && <p className="text-[10px] text-ink-muted">{item.network}</p>
-                    )}
-                  </div>
-                </motion.a>
+                <UpcomingCard key={item.id} item={item} />
               ))}
             </div>
           </div>
