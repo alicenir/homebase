@@ -49,6 +49,7 @@ const defaultSettings: Record<string, string> = {
   sonarr_api_key: "",
   radarr_url: "",
   radarr_api_key: "",
+  tmdb_api_key: "",
   teslamate_url: "",
   teslamate_api_token: "",
   teslamate_car_id: "1",

@@ -54,6 +54,15 @@ function extractPosters(toolName: string | undefined, content: string): PosterIt
         link: r.link ?? null,
       }));
     }
+    if (toolName === "get_trending_media" && Array.isArray(data.items)) {
+      return data.items.slice(0, 10).map((r: any, i: number) => ({
+        key: String(r.id ?? i),
+        title: r.title ?? "Unknown",
+        subtitle: r.releaseDate ? String(r.releaseDate).slice(0, 4) : undefined,
+        poster: r.poster ?? null,
+        link: null,
+      }));
+    }
   } catch {
     /* not JSON, or not a shape with posters — nothing to show */
   }

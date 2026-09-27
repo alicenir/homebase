@@ -46,6 +46,8 @@ export function SettingsPanel({
     radarr_api_key: "",
   });
   const [testingArr, setTestingArr] = useState<"sonarr" | "radarr" | null>(null);
+  const [tmdbApiKey, setTmdbApiKey] = useState("");
+  const [testingTmdb, setTestingTmdb] = useState(false);
   const [tesla, setTesla] = useState({ url: "", token: "", carId: "1" });
   const [plex, setPlex] = useState({ url: "", apiKey: "" });
   const [prowlarr, setProwlarr] = useState({ url: "", apiKey: "" });
@@ -119,6 +121,7 @@ export function SettingsPanel({
       radarr_url: settings.radarr_url ?? "",
       radarr_api_key: "",
     });
+    setTmdbApiKey("");
     setAssistant({
       provider: (settings.assistant_provider as "" | "ollama" | "anthropic" | "openai") ?? "",
       ollamaUrl: settings.assistant_ollama_url ?? "",
@@ -218,6 +221,30 @@ export function SettingsPanel({
     });
     setArr((a) => ({ ...a, [`${service}_api_key`]: "" }));
     toast.success(`${service === "sonarr" ? "Sonarr" : "Radarr"} saved`);
+  }
+
+  async function testTmdb() {
+    if (!tmdbApiKey) return toast.error("Enter an API key");
+    setTestingTmdb(true);
+    try {
+      const result = await api.post<{ ok: boolean; error?: string }>("/settings/tmdb/test", {
+        apiKey: tmdbApiKey,
+      });
+      if (result.ok) toast.success("Connected");
+      else toast.error(result.error ?? "Connection failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Connection failed");
+    } finally {
+      setTestingTmdb(false);
+    }
+  }
+
+  async function saveTmdb() {
+    if (!tmdbApiKey) return toast.error("Enter an API key");
+    await api.put("/settings", { tmdb_api_key: tmdbApiKey });
+    setSettings({ ...settings!, tmdb_configured: "true" });
+    setTmdbApiKey("");
+    toast.success("TMDB saved");
   }
 
   async function searchPlaces() {
@@ -1078,6 +1105,45 @@ export function SettingsPanel({
                       </div>
                     </div>
                   ))}
+
+                  <div className="hairline flex flex-col gap-2 border-t pt-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold uppercase tracking-wide text-ink">TMDB</h3>
+                      {settings?.tmdb_configured === "true" && (
+                        <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                          Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-ink-muted">
+                      Optional — lets the AI assistant answer "what's trending" questions with
+                      today's or this week's popular movies/shows.{" "}
+                      <a
+                        href="https://www.themoviedb.org/settings/api"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent hover:underline"
+                      >
+                        Get a free API key
+                      </a>
+                      .
+                    </p>
+                    <input
+                      type="password"
+                      value={tmdbApiKey}
+                      onChange={(e) => setTmdbApiKey(e.target.value)}
+                      placeholder={settings?.tmdb_configured === "true" ? "•••••••• (unchanged)" : "API key"}
+                      className="field"
+                    />
+                    <div className="ml-auto flex gap-2">
+                      <button onClick={testTmdb} disabled={testingTmdb} className="btn-outline disabled:opacity-50">
+                        {testingTmdb ? "Testing…" : "Test"}
+                      </button>
+                      <button onClick={saveTmdb} className="btn-primary">
+                        Save
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 

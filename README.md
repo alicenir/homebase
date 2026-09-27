@@ -43,9 +43,10 @@ questions about all of it.
 - **Docker host stats, service status & uptime** — approximate CPU/memory/disk usage of the Docker host
   (via Portainer), a compact reachability list for every tracked app, and Homebase's own process uptime
   with a recent-history sparkline.
-- **"Ask anything" AI assistant** — a chat box built into the header that answers questions about your
-  downloads, media library, indexers, containers, car and weather by calling straight into the same
-  services these widgets use. Bring your own model: a local [Ollama](https://ollama.com) server, or a
+- **"Ask anything" AI assistant** — a chat box, its own section on the dashboard, that answers
+  questions about your downloads, media library, indexers, containers, car and weather by calling
+  straight into the same services these widgets use, plus today's/this week's trending movies and TV
+  shows (via TMDB, optional). Bring your own model: a local [Ollama](https://ollama.com) server, or a
   Claude/OpenAI API key. It can also add media to Sonarr/Radarr or pause/resume/remove downloads —
   but only after you explicitly approve that specific action, and only when you're signed in.
 - **NAS monitoring (SNMP v1/v2c/v3)** — CPU load, memory and per-volume storage usage read straight
@@ -119,8 +120,14 @@ The assistant is provider-agnostic: `server/src/services/assistantProviders.ts` 
 Messages API, OpenAI's Chat Completions API and Ollama's `/api/chat` into one shape, so
 `server/src/services/assistant.ts` only has to implement the tool-calling loop once. Tools are thin
 wrappers around the existing services (`get_downloads`, `get_recently_added`, `get_car_status`,
-`get_indexer_status`, `get_containers`, `get_now_playing`, `get_weather`, `search_media`, and the two
-that change something: `add_media` and `control_downloads`). A mutating tool call is never executed on
+`get_indexer_status`, `get_containers`, `get_now_playing`, `get_weather`, `search_media`,
+`get_trending_media`, and the two that change something: `add_media` and `control_downloads`). Unlike
+`search_media` (which only finds a title you already name via Sonarr/Radarr's lookup, not a general
+"what's popular" query), `get_trending_media` reads TMDB's trending endpoint directly — the one place
+in the assistant's toolset that needs its own API key, since none of Homebase's other integrations
+expose a general "trending" concept to piggyback on; it degrades to a plain "not configured" tool
+result (which the model relays as a normal reply) when no key is set, rather than the model claiming
+it can't search the internet at all. A mutating tool call is never executed on
 the strength of the model asking for it: the server returns it to the client as a `needs_confirmation`
 step with nothing run yet, the client shows an approve/cancel prompt, and only a follow-up request
 carrying that exact call's id runs it — and only if the request is authenticated, checked before looking
@@ -199,7 +206,9 @@ volume.
 5. Open `http://<host>:5000`, go to **Settings → Downloads**, and enter your SABnzbd URL + API key (found
    in SABnzbd under **Config → General**).
 6. Optionally connect Sonarr and Radarr under **Settings → Media** (API key is in each app under
-   *Settings → General*) to get the "Recently added" poster row.
+   *Settings → General*) to get the "Recently added" poster row. In the same tab, optionally add a
+   [free TMDB API key](https://www.themoviedb.org/settings/api) so the AI assistant can answer
+   "what's trending" questions.
 7. Optionally connect TeslaMateApi under **Settings → Car** — enter its URL (usually port 8080), hit
    **Test & list cars** to discover your vehicles, pick one, and save.
 8. Optionally set your city under **Settings → Weather**, and connect Tautulli under
