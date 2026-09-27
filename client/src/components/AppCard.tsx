@@ -12,6 +12,8 @@ interface Props {
   accent?: string;
   onEdit: (item: Item) => void;
   onDelete: (item: Item) => void;
+  /** Layout-only classes (flex basis/grow) applied by the grid, not the card itself. */
+  className?: string;
 }
 
 const DOT: Record<string, { color: string; label: string; text: string }> = {
@@ -29,7 +31,7 @@ function sinceLabel(since: string | null): string {
   return hours < 24 ? `${hours}h` : `${Math.round(hours / 24)}d`;
 }
 
-export function AppCard({ item, editMode, accent, onEdit, onDelete }: Props) {
+export function AppCard({ item, editMode, accent, onEdit, onDelete, className }: Props) {
   const health = useStore((s) => s.health[item.id]);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -50,7 +52,7 @@ export function AppCard({ item, editMode, accent, onEdit, onDelete }: Props) {
       {...attributes}
       {...listeners}
       whileHover={{ y: -2 }}
-      className="group relative"
+      className={`group relative ${className ?? ""}`}
     >
       <a
         href={editMode ? undefined : item.url}
