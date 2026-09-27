@@ -18,6 +18,66 @@ const TOOL_LABELS: Record<string, string> = {
   control_downloads: "Change download queue",
 };
 
+interface PosterItem {
+  key: string;
+  title: string;
+  subtitle?: string;
+  poster: string | null;
+}
+
+// The model only ever gets these tool results as text, so it can describe a
+// movie but never actually show it. Rendering the same poster URLs the tool
+// already returned — client-side, independent of what the model says — is
+// what makes "search for X" feel like a real media search instead of a wall
+// of text.
+function extractPosters(toolName: string | undefined, content: string): PosterItem[] {
+  if (!toolName) return [];
+  try {
+    const data = JSON.parse(content);
+    if (toolName === "search_media" && Array.isArray(data)) {
+      return data.slice(0, 8).map((r: any, i: number) => ({
+        key: String(r.externalId ?? i),
+        title: r.title ?? "Unknown",
+        subtitle: r.year ? String(r.year) : undefined,
+        poster: r.poster ?? null,
+      }));
+    }
+    if ((toolName === "get_recently_added" || toolName === "get_upcoming") && Array.isArray(data.items)) {
+      return data.items.slice(0, 8).map((r: any, i: number) => ({
+        key: String(r.id ?? i),
+        title: r.title,
+        subtitle: r.subtitle,
+        poster: r.poster ?? null,
+      }));
+    }
+  } catch {
+    /* not JSON, or not a shape with posters — nothing to show */
+  }
+  return [];
+}
+
+function PosterStrip({ items }: { items: PosterItem[] }) {
+  return (
+    <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      {items.map((item) => (
+        <div key={item.key} className="w-20 shrink-0">
+          <div className="aspect-[2/3] w-full overflow-hidden rounded-lg sunken-strong">
+            {item.poster ? (
+              <img src={item.poster} alt="" loading="lazy" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center p-1 text-center text-[9px] font-semibold uppercase text-ink-muted">
+                {item.title}
+              </div>
+            )}
+          </div>
+          <p className="mt-1 truncate text-[10px] font-medium text-ink">{item.title}</p>
+          {item.subtitle && <p className="truncate text-[9px] text-ink-muted">{item.subtitle}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AssistantChat({
   open,
   onClose,
@@ -108,9 +168,11 @@ export function AssistantChat({
     await runTurn(declined);
   }
 
-  const visible = messages.filter(
-    (m) => (m.role === "user" || m.role === "assistant") && m.content.trim().length > 0
-  );
+  const visible = messages.filter((m) => {
+    if (m.role === "user" || m.role === "assistant") return m.content.trim().length > 0;
+    if (m.role === "tool") return extractPosters(m.toolName, m.content).length > 0;
+    return false;
+  });
 
   return (
     <AnimatePresence>
@@ -151,18 +213,22 @@ export function AssistantChat({
                 </p>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {visible.map((m, i) => (
-                    <div
-                      key={i}
-                      className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
-                        m.role === "user"
-                          ? "ml-auto bg-accent text-white"
-                          : "sunken mr-auto text-ink"
-                      }`}
-                    >
-                      {m.content}
-                    </div>
-                  ))}
+                  {visible.map((m, i) =>
+                    m.role === "tool" ? (
+                      <PosterStrip key={i} items={extractPosters(m.toolName, m.content)} />
+                    ) : (
+                      <div
+                        key={i}
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                          m.role === "user"
+                            ? "ml-auto bg-accent text-white"
+                            : "sunken mr-auto text-ink"
+                        }`}
+                      >
+                        {m.content}
+                      </div>
+                    )
+                  )}
                 </div>
               )}
 
