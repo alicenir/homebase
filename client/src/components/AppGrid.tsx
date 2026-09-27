@@ -12,6 +12,15 @@ import { useStore } from "../store/useStore";
 import type { Item } from "../types";
 import { AppCard } from "./AppCard";
 
+// flex-basis as a plain percentage doesn't account for the row's own gaps, so
+// the browser's line-breaking (which uses each item's *un-shrunk* basis, not
+// what it'll actually render at) silently wraps one item early per row —
+// e.g. 4 cards at a flat 25% plus 3 gaps overflow the row by the gap width,
+// so only 3 land on each line and grow stretches those 3, not 4. Baking the
+// gap into the basis with calc() keeps the intended column count exact.
+const TILE_BASIS =
+  "basis-[calc(50%-0.25rem)] sm:basis-[calc(50%-0.3125rem)] lg:basis-[calc(33.3333%-0.41667rem)] 2xl:basis-[calc(25%-0.46875rem)]";
+
 interface Props {
   items: Item[];
   accent?: string;
@@ -52,7 +61,11 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-2 gap-2 sm:gap-2.5 lg:grid-cols-3 2xl:grid-cols-4">
+        {/* flex + basis instead of a plain grid: a trailing row that doesn't
+            fill every column (11 apps in a 4-column grid, say) would otherwise
+            leave a gap on the right. flex-grow lets a short last row's cards
+            stretch to fill it, the way a full row already does. */}
+        <div className="flex flex-wrap gap-2 sm:gap-2.5">
           {items.map((item) => (
             <AppCard
               key={item.id}
@@ -61,12 +74,13 @@ export function AppGrid({ items, accent, onEdit, onAddClick }: Props) {
               editMode={editMode}
               onEdit={onEdit}
               onDelete={handleDelete}
+              className={`grow ${TILE_BASIS}`}
             />
           ))}
           {editMode && onAddClick && (
             <button
               onClick={onAddClick}
-              className="hairline flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent"
+              className={`hairline shrink-0 grow-0 flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-3.5 text-ink-muted transition-colors hover:border-accent/60 hover:text-accent ${TILE_BASIS}`}
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg sunken text-xl">
                 +
