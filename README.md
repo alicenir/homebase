@@ -48,10 +48,11 @@ questions about all of it.
   services these widgets use. Bring your own model: a local [Ollama](https://ollama.com) server, or a
   Claude/OpenAI API key. It can also add media to Sonarr/Radarr or pause/resume/remove downloads —
   but only after you explicitly approve that specific action, and only when you're signed in.
-- **NAS monitoring (SNMPv3)** — CPU load, memory and per-volume storage usage read straight from your
-  NAS's own SNMP agent (RFC 2790 Host Resources MIB), so it works against any NAS/NVR/server that
-  exposes standard SNMP, not just a specific vendor. No vendor API or extra agent to install — just
-  enable SNMPv3 in your NAS's network services settings and point Homebase at it.
+- **NAS monitoring (SNMP v1/v2c/v3)** — CPU load, memory and per-volume storage usage read straight
+  from your NAS's own SNMP agent (RFC 2790 Host Resources MIB), so it works against any NAS/NVR/server
+  that exposes standard SNMP, not just a specific vendor. No vendor API or extra agent to install —
+  just enable SNMP in your NAS's network services settings, pick the matching version in
+  **Settings → NAS**, and point Homebase at it.
 - **Theming** — dark/light mode and a configurable accent color.
 - **Optional password lock** — editing (adding/removing apps, changing settings) can be locked behind a
   password; browsing the dashboard itself is always open.
@@ -127,9 +128,12 @@ at approval at all, so a client can't approve its way past sign-in. Same pattern
 privileged action in this app: prompt for the password rather than silently failing or hiding the option.
 API keys are stored server-side like every other integration; the browser never sees them.
 
-The NAS widget speaks SNMPv3 directly to your NAS (`server/src/services/nas.ts`), reading only
-standard, mandatory-in-the-spec OIDs: `sysDescr`/`sysUpTime`, the Host Resources `hrProcessorTable`
-and `hrStorageTable` for CPU/volumes, with the richer net-snmpd `UCD-SNMP-MIB` extension
+The NAS widget speaks SNMP directly to your NAS (`server/src/services/nas.ts`) over whichever
+version you pick in **Settings → NAS** — v3 (username + password, optionally with separate
+auth/privacy protocols and passwords under **Advanced options**) or v1/v2c (a single community
+string) — reading only standard, mandatory-in-the-spec OIDs: `sysDescr`/`sysUpTime`, the Host
+Resources `hrProcessorTable` and `hrStorageTable` for CPU/volumes, with the richer net-snmpd
+`UCD-SNMP-MIB` extension
 (`laLoad`/`memTotalReal`/`memAvailReal`) tried first and silently falling back to the Host Resources
 equivalents when an agent doesn't expose it. This is deliberate: ASUSTOR (and most NAS vendors)
 publish no public API or MIB docs for their own per-disk SMART/temperature data, so rather than guess
@@ -140,7 +144,7 @@ table on your own configured NAS and shows every OID/type/value it finds, so ven
 documentation that doesn't exist. Auth/privacy keys are stored server-side like every other
 integration's credentials.
 
-The one password ADM collects is used as an SNMPv3 `authPriv` (encrypted) attempt first; if the
+On SNMPv3, the one password ADM collects is used as an `authPriv` (encrypted) attempt first; if the
 agent reports `Unsupported Security Level` — the standard USM response when a user was never
 provisioned with a privacy/encryption key, which is exactly how ASUSTOR's single-password SNMPv3
 setup works — Homebase automatically retries as `authNoPriv` (authenticated but unencrypted) with
@@ -197,12 +201,14 @@ volume.
 11. Optionally set up the AI assistant under **Settings → Assistant** — pick Ollama (paste its URL and a
     model name already pulled there) or Claude/OpenAI (paste an API key), hit **Test**, and save. The
     "Ask anything" bar appears in the header once a provider is configured.
-12. Optionally connect your NAS under **Settings → NAS** — enable SNMPv3 in your NAS's network
-    services settings first (ASUSTOR: ADM → **Settings → Services → SNMP**, tick **SNMP V3
-    service**), then enter its IP, SNMP username and password (ASUSTOR only asks for those two — no
-    separate auth/privacy passwords to configure) and hit **Test**. If it doesn't connect, open
-    **Advanced options** and try the other auth/privacy protocol combination, since ADM doesn't
-    document which one it uses internally.
+12. Optionally connect your NAS under **Settings → NAS** — enable SNMP in your NAS's network services
+    settings first (ASUSTOR: ADM → **Settings → Services → SNMP**), pick the matching version in the
+    **SNMP version** dropdown, and enter its IP plus the matching credentials: username + password
+    for v3 (tick **SNMP V3 service** in ADM), or a community string for v1/v2c (tick **SNMP V1 / SNMP
+    V2 service** in ADM). Hit **Test**. On v3, if it doesn't connect, open **Advanced options** and
+    try the other auth/privacy protocol combination, since ADM doesn't document which one it uses
+    internally — or switch to v2c above if your NAS has it enabled, since a community string has
+    nothing to guess.
 13. Optionally set a password under **Settings → Security** to lock editing.
 
 ## Configuration reference
