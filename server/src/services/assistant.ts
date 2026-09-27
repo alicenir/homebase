@@ -12,6 +12,7 @@ import { getStatus as getPortainerStatus, getHostStats } from "./portainer.js";
 import { getStatus as getProwlarrStatus } from "./prowlarr.js";
 import { getActivity as getTautulliActivity } from "./tautulli.js";
 import { getSnapshot as getTeslaSnapshot } from "./teslamate.js";
+import { getTrending } from "./tmdb.js";
 import { getWeather } from "./weather.js";
 import {
   callProvider,
@@ -64,6 +65,22 @@ const TOOLS: ToolDef[] = [
     },
     mutating: false,
     run: async (args) => lookup(args.service as "sonarr" | "radarr", String(args.term)),
+  },
+  {
+    name: "get_trending_media",
+    description:
+      "Get today's or this week's trending movies or TV shows, via TMDB — use this for \"what's popular/trending/top shows right now\" style questions. search_media only finds a specific title the user already named; this is for discovering what's currently popular in general.",
+    parameters: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["movie", "tv"] },
+        window: { type: "string", enum: ["day", "week"], description: "Defaults to day" },
+      },
+      required: ["kind"],
+    },
+    mutating: false,
+    run: async (args) =>
+      getTrending(args.kind as "movie" | "tv", (args.window as "day" | "week" | undefined) ?? "day"),
   },
   {
     name: "get_car_status",
@@ -194,10 +211,13 @@ function findTool(name: string): ToolDef | undefined {
 
 const SYSTEM_PROMPT = `You are the assistant built into Homebase, a self-hosted homelab dashboard. \
 You can answer questions about the user's downloads, media library, upcoming episodes, indexers, \
-Docker containers, Tesla, Plex playback and weather by calling the provided tools — always call a \
-tool to get live data rather than guessing. Keep answers short and conversational, formatted for a \
-small chat panel. Only call add_media or control_downloads when the user has clearly asked for that \
-action; those calls require the user's explicit approval before they run, so it's fine to propose them.`;
+Docker containers, Tesla, Plex playback, weather, and today's/this week's trending movies or TV \
+shows by calling the provided tools — always call a tool to get live data rather than guessing. If \
+asked what's popular, trending, or "the top shows right now," call get_trending_media rather than \
+saying you can't search the internet — that tool is exactly for this. Keep answers short and \
+conversational, formatted for a small chat panel. Only call add_media or control_downloads when the \
+user has clearly asked for that action; those calls require the user's explicit approval before they \
+run, so it's fine to propose them.`;
 
 function getProviderConfig(): ProviderConfig | null {
   const provider = getSetting("assistant_provider");

@@ -11,10 +11,11 @@ import { testConnection as testProwlarrConnection } from "../services/prowlarr.j
 import { isAssistantConfigured } from "../services/assistant.js";
 import { callProvider } from "../services/assistantProviders.js";
 import { testConnection as testNasConnection } from "../services/nas.js";
+import { testConnection as testTmdbConnection } from "../services/tmdb.js";
 
 export const settingsRouter = Router();
 
-const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key", "nas_snmp_auth_key", "nas_snmp_priv_key", "nas_snmp_community"];
+const SECRET_KEYS = ["password_hash", "sabnzbd_api_key", "sonarr_api_key", "radarr_api_key", "teslamate_api_token", "tautulli_api_key", "prowlarr_api_key", "portainer_api_key", "assistant_anthropic_api_key", "assistant_openai_api_key", "nas_snmp_auth_key", "nas_snmp_priv_key", "nas_snmp_community", "tmdb_api_key"];
 const URL_KEYS = ["sabnzbd_url", "sonarr_url", "radarr_url", "teslamate_url", "tautulli_url", "prowlarr_url", "portainer_url", "assistant_ollama_url", "nas_snmp_host", "nas_snmp_username"];
 
 settingsRouter.get("/", (req, res) => {
@@ -36,6 +37,7 @@ settingsRouter.get("/", (req, res) => {
   visible.prowlarr_configured = String(Boolean(all.prowlarr_url && all.prowlarr_api_key));
   visible.portainer_configured = String(Boolean(all.portainer_url && all.portainer_api_key));
   visible.assistant_configured = String(isAssistantConfigured());
+  visible.tmdb_configured = String(Boolean(all.tmdb_api_key));
   // Privacy (encryption) key is optional — some SNMPv3 setups (e.g. ASUSTOR
   // ADM) only ever provision an auth-only user, so it's never required here.
   const nasVersion = all.nas_snmp_version || "3";
@@ -130,6 +132,15 @@ settingsRouter.post("/arr/test", requireAuth, async (req, res) => {
   const parsed = arrTestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Service, URL and API key required" });
   const result = await testArrConnection(parsed.data.service, parsed.data.url, parsed.data.apiKey);
+  res.json(result);
+});
+
+const tmdbTestSchema = z.object({ apiKey: z.string().min(1) });
+
+settingsRouter.post("/tmdb/test", requireAuth, async (req, res) => {
+  const parsed = tmdbTestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "API key required" });
+  const result = await testTmdbConnection(parsed.data.apiKey);
   res.json(result);
 });
 
