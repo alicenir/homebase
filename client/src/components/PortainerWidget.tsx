@@ -70,7 +70,7 @@ export function PortainerWidget() {
       ) : snapshot.problem.length === 0 ? (
         <p className="py-3 text-center text-sm text-ink-muted">Every container is running</p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="scrollbar-thin flex max-h-[184px] flex-col gap-1.5 overflow-y-auto">
           {snapshot.problem.map((c) => (
             <li
               key={c.id}

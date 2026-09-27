@@ -73,7 +73,7 @@ export function ProwlarrWidget() {
           {snapshot.enabled === 0 ? "No indexers enabled" : "All indexers responding"}
         </p>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="scrollbar-thin flex max-h-[184px] flex-col gap-1.5 overflow-y-auto">
           {blocked.map((idx) => {
             const until = untilLabel(idx.disabledTill);
             return (

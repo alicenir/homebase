@@ -205,7 +205,7 @@ export function SabnzbdWidget() {
       ) : active === 0 ? (
         <p className="py-6 text-center text-sm text-ink-muted">Nothing downloading right now</p>
       ) : (
-        <div className="mt-3 flex flex-col gap-2">
+        <div className="scrollbar-thin mt-3 flex max-h-[264px] flex-col gap-2 overflow-y-auto">
           {sabnzbd.queue.map((slot) => (
             <QueueRow key={slot.nzo_id} slot={slot} authed={authed} />
           ))}
