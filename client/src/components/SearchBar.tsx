@@ -21,7 +21,7 @@ export function SearchBar({ value, onChange, searchEngine }: Props) {
   }
 
   return (
-    <div className="relative min-w-0 flex-1 lg:w-80 lg:flex-none">
+    <div className="relative order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1 lg:w-80 lg:flex-none">
       <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted">
         ⌕
       </span>

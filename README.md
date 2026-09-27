@@ -1,8 +1,9 @@
 # Homebase
 
 A self-hosted startpage / dashboard, in the spirit of [Flame](https://hub.docker.com/r/pawelmalak/flame), with a
-modern UI, live SABnzbd downloads, a Sonarr/Radarr "recently added" media row, and live status for your
-Tesla, Plex, Prowlarr indexers and Docker containers built in.
+modern UI, live SABnzbd downloads, a Sonarr/Radarr "recently added" media row, live status for your
+Tesla, Plex, Prowlarr indexers and Docker containers, and a built-in AI assistant that can answer
+questions about all of it.
 
 ## Features
 
@@ -39,6 +40,14 @@ Tesla, Plex, Prowlarr indexers and Docker containers built in.
   Nm" countdown from `disabledTill`), and any system health warnings/errors Prowlarr is reporting.
 - **Container status** — which Docker containers on your host are running vs. exited/restarting/dead, via
   Portainer's API. No SSH or host-level Docker socket access needed — just a Portainer API token.
+- **Docker host stats, service status & uptime** — approximate CPU/memory/disk usage of the Docker host
+  (via Portainer), a compact reachability list for every tracked app, and Homebase's own process uptime
+  with a recent-history sparkline.
+- **"Ask anything" AI assistant** — a chat box built into the header that answers questions about your
+  downloads, media library, indexers, containers, car and weather by calling straight into the same
+  services these widgets use. Bring your own model: a local [Ollama](https://ollama.com) server, or a
+  Claude/OpenAI API key. It can also add media to Sonarr/Radarr or pause/resume/remove downloads —
+  but only after you explicitly approve that specific action, and only when you're signed in.
 - **Theming** — dark/light mode and a configurable accent color.
 - **Optional password lock** — editing (adding/removing apps, changing settings) can be locked behind a
   password; browsing the dashboard itself is always open.
@@ -93,6 +102,27 @@ environment you pick in Settings. That means no Docker socket needs to be mounte
 SSH access to the NAS is required, just a Portainer personal access token scoped to read access. Polled
 every 60s.
 
+The Docker host stats panel reads the same Portainer proxy's `/docker/info` (core count, total memory)
+and `/docker/system/df` (image/container/volume disk usage) once, then fans out one
+`/docker/containers/:id/stats?stream=false` call per running container (capped at 60) to sum CPU and
+memory usage — the same numbers `docker stats` computes, just via Portainer's proxy instead of a local
+socket. It's the Docker workload's footprint on the NAS, not a literal whole-OS reading (that would need
+a host-level agent like Netdata or node_exporter), so it's labelled "Docker host" rather than claiming to
+be the NAS's own telemetry.
+
+The assistant is provider-agnostic: `server/src/services/assistantProviders.ts` normalizes Anthropic's
+Messages API, OpenAI's Chat Completions API and Ollama's `/api/chat` into one shape, so
+`server/src/services/assistant.ts` only has to implement the tool-calling loop once. Tools are thin
+wrappers around the existing services (`get_downloads`, `get_recently_added`, `get_car_status`,
+`get_indexer_status`, `get_containers`, `get_now_playing`, `get_weather`, `search_media`, and the two
+that change something: `add_media` and `control_downloads`). A mutating tool call is never executed on
+the strength of the model asking for it: the server returns it to the client as a `needs_confirmation`
+step with nothing run yet, the client shows an approve/cancel prompt, and only a follow-up request
+carrying that exact call's id runs it — and only if the request is authenticated, checked before looking
+at approval at all, so a client can't approve its way past sign-in. Same pattern as every other
+privileged action in this app: prompt for the password rather than silently failing or hiding the option.
+API keys are stored server-side like every other integration; the browser never sees them.
+
 ## Running locally (development)
 
 ```bash
@@ -140,8 +170,11 @@ volume.
 10. Optionally connect Portainer under **Settings → Docker** — enter its URL and an
     [API token](https://docs.portainer.io/api/access) (Portainer → your user → **Access tokens**), hit
     **Test & list environments**, and pick the environment your containers run under (usually `1` for
-    local Docker on the NAS itself).
-11. Optionally set a password under **Settings → Security** to lock editing.
+    local Docker on the NAS itself). This also powers the Docker host stats panel.
+11. Optionally set up the AI assistant under **Settings → Assistant** — pick Ollama (paste its URL and a
+    model name already pulled there) or Claude/OpenAI (paste an API key), hit **Test**, and save. The
+    "Ask anything" bar appears in the header once a provider is configured.
+12. Optionally set a password under **Settings → Security** to lock editing.
 
 ## Configuration reference
 
@@ -163,7 +196,8 @@ The SABnzbd widget is built on a small, self-contained service module
 without touching the rest of the app. Natural next steps:
 
 - **More live widgets**: Overseerr/Ombi (pending requests), a torrent client alongside the Usenet one.
-- **Host stats widget**: CPU/RAM/disk/network via a tiny agent, shown as sparklines in the sidebar.
+- **More assistant tools**: Overseerr/Ombi requests, Tautulli history, TeslaMate driving history — anything
+  with a service module already has the shape the assistant's tools expect.
 - **Multi-user profiles**: separate dashboards/layouts per household member, each with their own pinned
   apps.
 - **Notifications**: desktop/browser push when a SABnzbd job completes or fails, or a monitored service

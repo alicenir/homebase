@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useStore } from "../store/useStore";
 import { Greeting } from "./Clock";
 import { SearchBar } from "./SearchBar";
@@ -7,9 +8,10 @@ interface Props {
   onQueryChange: (q: string) => void;
   onOpenSettings: () => void;
   onOpenLogin: () => void;
+  onAskAssistant: (question: string) => void;
 }
 
-export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin }: Props) {
+export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin, onAskAssistant }: Props) {
   const settings = useStore((s) => s.settings);
   const authed = useStore((s) => s.authed);
   const hasPassword = useStore((s) => s.hasPassword);
@@ -17,6 +19,12 @@ export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin }: Pr
   const toggleEditMode = useStore((s) => s.toggleEditMode);
   const mediaConfigured = useStore((s) => s.mediaConfigured);
   const setAddMediaOpen = useStore((s) => s.setAddMediaOpen);
+  const health = useStore((s) => s.health);
+  const assistantConfigured = settings?.assistant_configured === "true";
+
+  const [ask, setAsk] = useState("");
+
+  const hasIssue = Object.values(health).some((h) => h.state === "down");
 
   function handleEditClick() {
     if (!authed && hasPassword) {
@@ -47,47 +55,103 @@ export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin }: Pr
     setAddMediaOpen(true);
   }
 
+  function handleBellClick() {
+    document.getElementById("status-row")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function submitAsk() {
+    const q = ask.trim();
+    if (!q) return;
+    onAskAssistant(q);
+    setAsk("");
+  }
+
   return (
-    <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-      <Greeting name={settings?.greeting_name ?? ""} />
+    <header className="glass flex flex-col gap-6 rounded-3xl p-5 sm:p-7">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <Greeting name={settings?.greeting_name ?? ""} />
 
-      <div className="flex w-full items-center gap-2 lg:w-auto lg:shrink-0">
-        <SearchBar
-          value={query}
-          onChange={onQueryChange}
-          searchEngine={settings?.search_engine ?? "https://www.google.com/search?q=%s"}
-        />
-        {/* Always in the header so it never depends on how far down the media
-            row is, or whether it has anything in it yet. */}
-        {mediaConfigured && (
+        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:shrink-0 lg:justify-end">
+          <span className="hairline hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold text-emerald-400 sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Online
+          </span>
+
           <button
-            onClick={handleAddClick}
-            title="Add a movie or series"
-            className="flex h-[42px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-accent px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            onClick={handleBellClick}
+            title="Status"
+            className="hairline relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border text-ink-muted transition-colors hover:border-accent/60 hover:text-ink"
           >
-            <span className="text-lg leading-none">+</span>
-            <span className="hidden sm:inline">Add</span>
+            🔔
+            {hasIssue && (
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
+            )}
           </button>
-        )}
 
-        <button
-          onClick={handleEditClick}
-          className={`hairline shrink-0 whitespace-nowrap rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
-            editMode
-              ? "border-accent text-accent"
-              : "text-ink-muted hover:border-accent/60 hover:text-ink"
-          }`}
-        >
-          {editMode ? "Done" : "Edit"}
-        </button>
-        <button
-          onClick={handleSettingsClick}
-          className="hairline flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border text-ink-muted transition-colors hover:border-accent/60 hover:text-ink"
-          title="Settings"
-        >
-          ⚙
-        </button>
+          <SearchBar
+            value={query}
+            onChange={onQueryChange}
+            searchEngine={settings?.search_engine ?? "https://www.google.com/search?q=%s"}
+          />
+
+          {/* Always in the header so it never depends on how far down the media
+              row is, or whether it has anything in it yet. */}
+          {mediaConfigured && (
+            <button
+              onClick={handleAddClick}
+              title="Add a movie or series"
+              className="flex h-[42px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-accent px-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <span className="text-lg leading-none">+</span>
+              <span className="hidden sm:inline">Add</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleEditClick}
+            className={`hairline shrink-0 whitespace-nowrap rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+              editMode
+                ? "border-accent text-accent"
+                : "text-ink-muted hover:border-accent/60 hover:text-ink"
+            }`}
+          >
+            {editMode ? "Done" : "Edit"}
+          </button>
+          <button
+            onClick={handleSettingsClick}
+            className="hairline flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border text-ink-muted transition-colors hover:border-accent/60 hover:text-ink"
+            title="Settings"
+          >
+            ⚙
+          </button>
+        </div>
       </div>
+
+      {assistantConfigured && (
+        <div>
+          <div className="sunken flex items-center gap-2 rounded-2xl p-1.5 pl-4">
+            <span className="text-accent">✦</span>
+            <input
+              value={ask}
+              onChange={(e) => setAsk(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitAsk()}
+              placeholder="Ask anything…"
+              className="min-w-0 flex-1 bg-transparent py-2 text-sm text-ink placeholder:text-ink-muted focus:outline-none"
+            />
+            <button
+              onClick={submitAsk}
+              disabled={!ask.trim()}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+              title="Ask"
+            >
+              →
+            </button>
+          </div>
+          <p className="mt-2 px-1 text-xs text-ink-muted">
+            Ask about your downloads, media, containers, indexers and more.
+          </p>
+        </div>
+      )}
     </header>
   );
 }

@@ -94,6 +94,142 @@ export async function getStatus(): Promise<PortainerSnapshot> {
   }
 }
 
+export interface HostStats {
+  configured: boolean;
+  reachable: boolean;
+  error?: string;
+  endpointName: string | null;
+  cpuCores: number;
+  cpuPercent: number | null;
+  memTotalBytes: number;
+  memUsedBytes: number | null;
+  memPercent: number | null;
+  diskUsedBytes: number | null;
+  containerCount: number;
+  runningCount: number;
+}
+
+function emptyHostStats(configured: boolean, error?: string): HostStats {
+  return {
+    configured,
+    reachable: false,
+    error,
+    endpointName: null,
+    cpuCores: 0,
+    cpuPercent: null,
+    memTotalBytes: 0,
+    memUsedBytes: null,
+    memPercent: null,
+    diskUsedBytes: null,
+    containerCount: 0,
+    runningCount: 0,
+  };
+}
+
+/** One container's /stats?stream=false snapshot, just the fields we use. */
+async function containerStats(
+  cfg: { url: string; apiKey: string },
+  endpointId: string,
+  id: string
+): Promise<{ cpuPercent: number; memBytes: number } | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await lanFetch(
+      `${cfg.url}/api/endpoints/${endpointId}/docker/containers/${id}/stats?stream=false`,
+      { headers: { "X-Api-Key": cfg.apiKey }, signal: controller.signal }
+    );
+    if (!res.ok) return null;
+    const s: any = await res.json();
+
+    const cpuDelta = (s.cpu_stats?.cpu_usage?.total_usage ?? 0) - (s.precpu_stats?.cpu_usage?.total_usage ?? 0);
+    const systemDelta = (s.cpu_stats?.system_cpu_usage ?? 0) - (s.precpu_stats?.system_cpu_usage ?? 0);
+    const onlineCpus =
+      s.cpu_stats?.online_cpus ?? s.cpu_stats?.cpu_usage?.percpu_usage?.length ?? 1;
+    // Standard `docker stats` formula — percent of a single core, scaled by core count.
+    const cpuPercent = systemDelta > 0 && cpuDelta > 0 ? (cpuDelta / systemDelta) * onlineCpus * 100 : 0;
+
+    // Match `docker stats`: exclude page cache from the "used" figure so it
+    // doesn't look like memory pressure that isn't really there.
+    const cache = s.memory_stats?.stats?.cache ?? s.memory_stats?.stats?.inactive_file ?? 0;
+    const memBytes = Math.max((s.memory_stats?.usage ?? 0) - cache, 0);
+
+    return { cpuPercent, memBytes };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// A NAS can easily run 40-50+ containers (Portainer's own dashboard is where
+// that number comes from) — capped so a poll cycle can't balloon into
+// hundreds of concurrent stats requests against the Portainer proxy.
+const MAX_STATS_CONTAINERS = 60;
+
+export async function getHostStats(): Promise<HostStats> {
+  const cfg = config();
+  if (!cfg) return emptyHostStats(false);
+
+  try {
+    const [info, containers, df, endpoints] = await Promise.all([
+      call(`/api/endpoints/${cfg.endpointId}/docker/info`),
+      call(`/api/endpoints/${cfg.endpointId}/docker/containers/json?all=true`),
+      call(`/api/endpoints/${cfg.endpointId}/docker/system/df`).catch(() => null),
+      call("/api/endpoints").catch(() => null),
+    ]);
+
+    const list = Array.isArray(containers) ? containers : [];
+    const running: string[] = list
+      .filter((c: any) => c.State === "running")
+      .map((c: any) => c.Id)
+      .slice(0, MAX_STATS_CONTAINERS);
+
+    const stats = (
+      await Promise.all(running.map((id) => containerStats(cfg, cfg.endpointId, id)))
+    ).filter((s): s is { cpuPercent: number; memBytes: number } => s !== null);
+
+    const cpuCores: number = info?.NCPU ?? 0;
+    const memTotalBytes: number = info?.MemTotal ?? 0;
+    const totalCpuPercent = stats.reduce((sum, s) => sum + s.cpuPercent, 0);
+    const totalMemBytes = stats.reduce((sum, s) => sum + s.memBytes, 0);
+
+    let diskUsedBytes: number | null = null;
+    if (df && typeof df === "object") {
+      const images = Array.isArray(df.Images)
+        ? df.Images.reduce((sum: number, i: any) => sum + (i.Size ?? 0), 0)
+        : 0;
+      const containersSize = Array.isArray(df.Containers)
+        ? df.Containers.reduce((sum: number, c: any) => sum + (c.SizeRootFs ?? c.SizeRw ?? 0), 0)
+        : 0;
+      const volumes = Array.isArray(df.Volumes)
+        ? df.Volumes.reduce((sum: number, v: any) => sum + (v.UsageData?.Size ?? 0), 0)
+        : 0;
+      diskUsedBytes = images + containersSize + volumes;
+    }
+
+    const endpointName = Array.isArray(endpoints)
+      ? endpoints.find((e: any) => String(e.Id) === cfg.endpointId)?.Name ?? null
+      : null;
+
+    return {
+      configured: true,
+      reachable: true,
+      endpointName,
+      cpuCores,
+      cpuPercent: cpuCores > 0 ? Math.min(totalCpuPercent / (cpuCores * 100), 1) * 100 : null,
+      memTotalBytes,
+      memUsedBytes: totalMemBytes,
+      memPercent: memTotalBytes > 0 ? Math.min(totalMemBytes / memTotalBytes, 1) * 100 : null,
+      diskUsedBytes,
+      containerCount: list.length,
+      runningCount: running.length,
+    };
+  } catch (err) {
+    return emptyHostStats(true, err instanceof Error ? err.message : "unreachable");
+  }
+}
+
 export async function listEndpoints(
   url: string,
   apiKey: string

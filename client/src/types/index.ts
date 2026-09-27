@@ -294,3 +294,53 @@ export interface PortainerEndpoint {
   name: string;
   status: "up" | "down";
 }
+
+export interface HostStats {
+  configured: boolean;
+  reachable: boolean;
+  error?: string;
+  endpointName: string | null;
+  cpuCores: number;
+  cpuPercent: number | null;
+  memTotalBytes: number;
+  memUsedBytes: number | null;
+  memPercent: number | null;
+  diskUsedBytes: number | null;
+  containerCount: number;
+  runningCount: number;
+}
+
+export interface UptimeInfo {
+  processUptimeSeconds: number;
+  history: { at: string; fractionUp: number }[];
+}
+
+export type ChatRole = "system" | "user" | "assistant" | "tool";
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string;
+  toolCalls?: ToolCall[];
+  toolCallId?: string;
+  toolName?: string;
+}
+
+export interface PendingCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  description: string;
+}
+
+export interface AssistantTurnResult {
+  status: "done" | "needs_confirmation" | "needs_login" | "not_configured" | "error";
+  messages: ChatMessage[];
+  pendingCalls?: PendingCall[];
+  error?: string;
+}

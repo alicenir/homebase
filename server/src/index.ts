@@ -18,6 +18,7 @@ import { tautulliRouter } from "./routes/tautulli.js";
 import { healthRouter } from "./routes/health.js";
 import { prowlarrRouter } from "./routes/prowlarr.js";
 import { portainerRouter } from "./routes/portainer.js";
+import { assistantRouter } from "./routes/assistant.js";
 import { getSnapshot, startSabnzbdPolling } from "./services/sabnzbd.js";
 import { getSnapshot as getTeslaSnapshot, startTeslaPolling } from "./services/teslamate.js";
 import { getActivity, startTautulliPolling } from "./services/tautulli.js";
@@ -44,6 +45,7 @@ app.use("/api/tautulli", tautulliRouter);
 app.use("/api/health-checks", healthRouter);
 app.use("/api/prowlarr", prowlarrRouter);
 app.use("/api/portainer", portainerRouter);
+app.use("/api/assistant", assistantRouter);
 
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(
