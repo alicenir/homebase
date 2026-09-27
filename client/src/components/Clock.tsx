@@ -13,7 +13,7 @@ export function Greeting({ name }: { name: string }) {
 
   return (
     <div className="min-w-0">
-      <p className="text-sm font-semibold text-ink-muted">
+      <p className="text-lg font-semibold text-ink">
         {timeGreeting}
         {name ? (
           <>
@@ -22,10 +22,10 @@ export function Greeting({ name }: { name: string }) {
         ) : null}
         !
       </p>
-      <h1 className="mt-1 text-[clamp(3rem,7vw,5.5rem)] font-extrabold leading-[1] tracking-tight tabular-nums text-ink">
+      <h1 className="mt-1 text-[clamp(1.75rem,3.4vw,2.75rem)] font-extrabold leading-[1.1] tracking-tight tabular-nums text-ink">
         {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </h1>
-      <p className="mt-1.5 text-sm font-medium text-ink-muted">
+      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-ink-muted">
         {now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       </p>
     </div>
