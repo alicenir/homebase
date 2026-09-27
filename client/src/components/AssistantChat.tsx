@@ -56,6 +56,48 @@ function extractPosters(toolName: string | undefined, content: string): PosterIt
   return [];
 }
 
+// get_recently_added / get_upcoming answer "what's in the library" and can
+// come back with a dozen unrelated titles — asking "was Backrooms downloaded"
+// shouldn't show American Horror Story and MobLand alongside it just because
+// the model checked the whole recently-added list to answer. Narrow to
+// whatever the triggering question actually named, when it named anything;
+// a broad question ("what's recently added") won't match anything, so it
+// falls back to the full list, which is the right behavior for a browse.
+function filterToQuestion(items: PosterItem[], question: string | undefined): PosterItem[] {
+  if (!question) return items;
+  const q = question.toLowerCase();
+  const matches = items.filter((item) => q.includes(item.title.toLowerCase()));
+  return matches.length > 0 ? matches : items;
+}
+
+type RenderItem =
+  | { kind: "bubble"; key: number; role: "user" | "assistant"; content: string }
+  | { kind: "posters"; key: number; items: PosterItem[] };
+
+function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
+  const out: RenderItem[] = [];
+  messages.forEach((m, i) => {
+    if ((m.role === "user" || m.role === "assistant") && m.content.trim()) {
+      out.push({ kind: "bubble", key: i, role: m.role, content: m.content });
+      return;
+    }
+    if (m.role === "tool") {
+      const raw = extractPosters(m.toolName, m.content);
+      if (raw.length === 0) return;
+      let question: string | undefined;
+      for (let j = i - 1; j >= 0; j--) {
+        if (messages[j].role === "user") {
+          question = messages[j].content;
+          break;
+        }
+      }
+      const items = filterToQuestion(raw, question);
+      if (items.length > 0) out.push({ kind: "posters", key: i, items });
+    }
+  });
+  return out;
+}
+
 function PosterStrip({ items }: { items: PosterItem[] }) {
   return (
     <div className="scrollbar-thin -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -168,11 +210,7 @@ export function AssistantChat({
     await runTurn(declined);
   }
 
-  const visible = messages.filter((m) => {
-    if (m.role === "user" || m.role === "assistant") return m.content.trim().length > 0;
-    if (m.role === "tool") return extractPosters(m.toolName, m.content).length > 0;
-    return false;
-  });
+  const renderItems = buildRenderItems(messages);
 
   return (
     <AnimatePresence>
@@ -207,25 +245,25 @@ export function AssistantChat({
                   The assistant isn't set up yet — connect a provider under{" "}
                   <span className="font-semibold text-ink">Settings → Assistant</span>.
                 </p>
-              ) : visible.length === 0 ? (
+              ) : renderItems.length === 0 ? (
                 <p className="text-sm text-ink-muted">
                   Ask about your downloads, media library, containers, indexers, car or the weather.
                 </p>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {visible.map((m, i) =>
-                    m.role === "tool" ? (
-                      <PosterStrip key={i} items={extractPosters(m.toolName, m.content)} />
+                  {renderItems.map((item) =>
+                    item.kind === "posters" ? (
+                      <PosterStrip key={item.key} items={item.items} />
                     ) : (
                       <div
-                        key={i}
+                        key={item.key}
                         className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
-                          m.role === "user"
+                          item.role === "user"
                             ? "ml-auto bg-accent text-white"
                             : "sunken mr-auto text-ink"
                         }`}
                       >
-                        {m.content}
+                        {item.content}
                       </div>
                     )
                   )}
