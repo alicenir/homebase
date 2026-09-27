@@ -128,7 +128,7 @@ export function Header({ query, onQueryChange, onOpenSettings, onOpenLogin, onAs
       </div>
 
       {assistantConfigured && (
-        <div>
+        <div className="mx-auto w-full max-w-2xl text-center">
           <div className="sunken flex items-center gap-2 rounded-2xl p-1.5 pl-4">
             <span className="text-accent">✦</span>
             <input
